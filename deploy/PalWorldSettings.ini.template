@@ -1,0 +1,2 @@
+[/Script/Pal.PalGameWorldSettings]
+OptionSettings=(bIsMultiplay=True,GuildPlayerMaxNum=4,ServerPlayerMaxNum=4,ServerName="Palpagos After Hours",ServerDescription="Private Palworld server for four friends",AdminPassword="__ADMIN_PASSWORD__",ServerPassword="__SERVER_PASSWORD__",RCONEnabled=True,RCONPort=25575,RESTAPIEnabled=True,RESTAPIPort=8212,bShowPlayerList=True,bIsUseBackupSaveData=True,LogFormatType=Json,CrossplayPlatforms=(Steam,Xbox,PS5,Mac),bIsShowJoinLeftMessage=True)

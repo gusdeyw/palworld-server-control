@@ -23,3 +23,27 @@ go.work.sum
 
 # env file
 .env
+
+# Python and editor state
+__pycache__/
+*.py[cod]
+.idea/
+.vscode/
+.DS_Store
+
+# Runtime data and backups
+data/
+backups/
+*.zip
+*.tar
+*.tar.gz
+
+# Certificates and private keys
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Local screenshots and test artifacts
+settings-desktop.png
+settings-mobile.png

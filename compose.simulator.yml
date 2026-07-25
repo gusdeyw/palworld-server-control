@@ -1,0 +1,53 @@
+services:
+  palworld:
+    build:
+      context: ./simulator
+    container_name: palworld
+    environment:
+      SIM_ADMIN_PASSWORD: "1234"
+      SIM_SAVE_DIR: "/saved"
+    ports:
+      - "127.0.0.1:8212:8212"
+      - "127.0.0.1:25575:25575"
+    volumes:
+      - palworld-sim-save:/saved
+    networks:
+      - palworld-sim
+
+  palctrl:
+    build:
+      context: .
+    container_name: palctrl
+    restart: unless-stopped
+    user: "0:0"
+    depends_on:
+      - palworld
+    environment:
+      PANEL_ADDR: "0.0.0.0:8080"
+      PANEL_PASSWORD: "1234"
+      PALWORLD_MOCK: "false"
+      PALWORLD_REST_URL: "http://palworld:8212"
+      PALWORLD_ADMIN_USER: "admin"
+      PALWORLD_ADMIN_PASSWORD: "1234"
+      PALWORLD_RCON_ADDR: "palworld:25575"
+      PALWORLD_RCON_PASSWORD: "1234"
+      PALWORLD_CONTAINER: "palworld"
+      PALWORLD_SAVE_DIR: "/palworld-saved"
+      PALWORLD_BACKUP_DIR: "/backups"
+      METRICS_INTERVAL: "10s"
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - palworld-sim-save:/palworld-saved:ro
+      - palworld-sim-backups:/backups
+    networks:
+      - palworld-sim
+
+volumes:
+  palworld-sim-save:
+  palworld-sim-backups:
+
+networks:
+  palworld-sim:
+

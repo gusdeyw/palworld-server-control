@@ -1,0 +1,33 @@
+services:
+  palctrl:
+    build: .
+    container_name: palctrl
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file:
+      - .env
+    environment:
+      PANEL_ADDR: "0.0.0.0:8080"
+      PALWORLD_REST_URL: "http://palworld:8212"
+      PALWORLD_RCON_ADDR: "palworld:25575"
+      PALWORLD_COMPOSE_DIR: "/opt/palworld"
+      PALWORLD_SAVE_DIR: "/opt/palworld/data/Pal/Saved"
+      PALWORLD_BACKUP_DIR: "/backups"
+      PALWORLD_SETTINGS_PATH: "/palworld-config/PalWorldSettings.ini"
+      PALWORLD_SETTINGS_STATE_DIR: "/backups/settings"
+    volumes:
+      # Docker control is powerful. Keep this panel private.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Replace these host paths with your real deployment paths.
+      # Mount the Compose directory at the same absolute path it has on
+      # the host so relative bind mounts resolve correctly.
+      - /opt/palworld:/opt/palworld:ro
+      - /opt/palworld/backups:/backups
+      - /opt/palworld/data/Saved/Config/LinuxServer:/palworld-config
+    networks:
+      - palworld-private
+
+networks:
+  palworld-private:
+    external: true

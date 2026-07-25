@@ -1,0 +1,61 @@
+services:
+  palworld:
+    image: ghcr.io/pocketpairjp/palserver:latest
+    container_name: palworld
+    restart: unless-stopped
+    entrypoint: /pal/helper.sh
+    command:
+      - -port=8211
+      - -players=4
+      - -log
+      - -logformat=json
+    mem_limit: 7g
+    mem_reservation: 5g
+    stop_grace_period: 45s
+    ports:
+      - "8211:8211/udp"
+    volumes:
+      - /opt/palworld/helper.sh:/pal/helper.sh:ro
+      - /opt/palworld/data/Saved:/pal/Package/Pal/Saved
+    networks:
+      - palworld-internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  palctrl:
+    build:
+      context: /opt/palworld/app
+      dockerfile: Dockerfile
+    image: palctrl:production
+    container_name: palctrl
+    restart: unless-stopped
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: 0.50
+    depends_on:
+      - palworld
+    user: "0:0"
+    env_file:
+      - /opt/palworld/.env
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/palworld:/opt/palworld:ro
+      - /opt/palworld/data/Saved:/palworld-saved:ro
+      - /opt/palworld/data/backups:/backups
+      - /opt/palworld/data/Saved/Config/LinuxServer:/palworld-config
+    networks:
+      - palworld-internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  palworld-internal:
+    name: palworld-internal

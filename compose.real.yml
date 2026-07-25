@@ -1,0 +1,31 @@
+services:
+  palctrl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: palctrl
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      PANEL_ADDR: 0.0.0.0:8080
+      PANEL_PASSWORD: "1234"
+      PALWORLD_MOCK: "false"
+      PALWORLD_REST_URL: http://host.docker.internal:8212
+      PALWORLD_ADMIN_USER: admin
+      PALWORLD_ADMIN_PASSWORD: "1234"
+      PALWORLD_RCON_ADDR: host.docker.internal:25575
+      PALWORLD_RCON_PASSWORD: "1234"
+      PALWORLD_CONTROL_URL: http://host.docker.internal:8213
+      PALWORLD_CONTROL_TOKEN: "1234"
+      PALWORLD_SAVE_DIR: /palworld-saved
+      PALWORLD_BACKUP_DIR: /backups
+      PALWORLD_SETTINGS_PATH: /palworld-config/PalWorldSettings.ini
+      PALWORLD_SETTINGS_STATE_DIR: /backups/settings
+      METRICS_INTERVAL: 10s
+    volumes:
+      - "D:/PalworldServer/server/Pal/Saved:/palworld-saved:ro"
+      - "D:/PalworldServer/panel-backups:/backups"
+      - "D:/PalworldServer/server/Pal/Saved/Config/WindowsServer:/palworld-config"

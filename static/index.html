@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111512">
+  <meta name="description" content="Private Palworld server control panel">
+  <title>PAL CTRL</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <header class="topbar">
+    <a class="brand" href="#overview" data-view-link="overview" aria-label="PAL CTRL overview">
+      <span class="brand-mark" aria-hidden="true">P</span>
+      <span>PAL CTRL</span>
+    </a>
+
+    <div class="topbar-server">
+      <span class="status-dot" id="top-status-dot" aria-hidden="true"></span>
+      <span id="top-server-name">Connecting</span>
+      <span class="topbar-state" id="top-server-state">Checking server</span>
+    </div>
+
+    <div class="topbar-actions">
+      <span class="sample-label" id="sample-label" hidden>Sample mode</span>
+      <button class="quiet-button" id="refresh-button" type="button">Refresh</button>
+      <button class="quiet-button" id="logout-button" type="button">Lock</button>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <nav class="nav-list">
+        <button class="nav-button is-active" type="button" data-view="overview">
+          <span class="nav-key">01</span>
+          <span>Overview</span>
+        </button>
+        <button class="nav-button" type="button" data-view="players">
+          <span class="nav-key">02</span>
+          <span>Players</span>
+          <span class="nav-count" id="nav-player-count">0</span>
+        </button>
+        <button class="nav-button" type="button" data-view="console">
+          <span class="nav-key">03</span>
+          <span>Console</span>
+        </button>
+        <button class="nav-button" type="button" data-view="utilities">
+          <span class="nav-key">04</span>
+          <span>Utilities</span>
+        </button>
+        <button class="nav-button" type="button" data-view="settings">
+          <span class="nav-key">05</span>
+          <span>Game Night</span>
+          <span class="nav-count nav-count-pending" id="nav-settings-count" hidden>0</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <p>One world.<br>Four friends.</p>
+        <span id="last-updated">Waiting for data</span>
+      </div>
+    </aside>
+
+    <main id="main-content" tabindex="-1">
+      <div class="issue-banner" id="issue-banner" role="status" hidden>
+        <strong>Some data is unavailable</strong>
+        <span id="issue-message"></span>
+      </div>
+
+      <section class="view is-visible" id="view-overview" data-view-panel="overview" aria-labelledby="overview-title">
+        <div class="page-heading">
+          <div>
+            <p class="context-label">Private server</p>
+            <h1 id="overview-title">Your world at a glance.</h1>
+            <p class="page-description" id="server-description">Waiting for the Palworld API.</p>
+          </div>
+          <div class="primary-actions" aria-label="Server controls">
+            <button class="button button-secondary" type="button" data-action="save">Save world</button>
+            <button class="button button-secondary" type="button" data-action="restart">Restart</button>
+            <button class="button button-primary" type="button" data-action="start">Start server</button>
+          </div>
+        </div>
+
+        <div class="metric-strip" id="metric-strip" aria-label="Current server metrics">
+          <div class="metric">
+            <span class="metric-label">Status</span>
+            <strong class="metric-value status-value" id="metric-status">Checking</strong>
+            <span class="metric-note" id="metric-container">Controller unknown</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Players</span>
+            <strong class="metric-value" id="metric-players">-</strong>
+            <span class="metric-note">online now</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Server FPS</span>
+            <strong class="metric-value" id="metric-fps">-</strong>
+            <span class="metric-note" id="metric-frame-time">No frame data</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Memory</span>
+            <strong class="metric-value metric-value-small" id="metric-memory">-</strong>
+            <span class="metric-note" id="metric-memory-percent">Memory usage</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">CPU</span>
+            <strong class="metric-value" id="metric-cpu">-</strong>
+            <span class="metric-note">process load</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Uptime</span>
+            <strong class="metric-value metric-value-small" id="metric-uptime">-</strong>
+            <span class="metric-note" id="metric-day">World day unknown</span>
+          </div>
+        </div>
+
+        <div class="overview-grid">
+          <section class="chart-panel" aria-labelledby="performance-title">
+            <div class="section-heading">
+              <div>
+                <h2 id="performance-title">Performance</h2>
+                <p>Server FPS over the last 24 hours.</p>
+              </div>
+              <div class="chart-legend">
+                <span><i class="legend-line" aria-hidden="true"></i>FPS</span>
+                <strong id="chart-current">-</strong>
+              </div>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="performance-chart" aria-label="Server FPS history chart"></canvas>
+              <p class="chart-empty" id="chart-empty">Collecting the first performance samples.</p>
+            </div>
+          </section>
+
+          <section class="online-panel" aria-labelledby="online-title">
+            <div class="section-heading">
+              <div>
+                <h2 id="online-title">Online now</h2>
+                <p id="online-summary">Nobody is connected.</p>
+              </div>
+              <button class="text-button" type="button" data-view-jump="players">Manage</button>
+            </div>
+            <div class="player-stack" id="overview-player-list">
+              <div class="empty-state compact">
+                <strong>No players online</strong>
+                <span>The server is quiet right now.</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="world-panel" aria-labelledby="world-title">
+            <div class="section-heading">
+              <div>
+                <h2 id="world-title">World details</h2>
+                <p>Live settings reported by the game.</p>
+              </div>
+            </div>
+            <dl class="detail-grid">
+              <div>
+                <dt>Version</dt>
+                <dd id="detail-version">-</dd>
+              </div>
+              <div>
+                <dt>Difficulty</dt>
+                <dd id="detail-difficulty">-</dd>
+              </div>
+              <div>
+                <dt>Experience rate</dt>
+                <dd id="detail-exp">-</dd>
+              </div>
+              <div>
+                <dt>Capture rate</dt>
+                <dd id="detail-capture">-</dd>
+              </div>
+              <div>
+                <dt>Death penalty</dt>
+                <dd id="detail-death">-</dd>
+              </div>
+              <div>
+                <dt>Crossplay</dt>
+                <dd id="detail-crossplay">-</dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="view-players" data-view-panel="players" aria-labelledby="players-title" hidden>
+        <div class="page-heading">
+          <div>
+            <p class="context-label">Player management</p>
+            <h1 id="players-title">Who is in the world?</h1>
+            <p class="page-description">See latency and level, then intervene only when needed.</p>
+          </div>
+        </div>
+
+        <form class="announce-form" id="announce-form">
+          <div class="field">
+            <label for="announce-message">Server announcement</label>
+            <div class="field-row">
+              <input id="announce-message" name="message" maxlength="240" autocomplete="off" placeholder="Dinner in ten minutes">
+              <button class="button button-primary" type="submit">Send message</button>
+            </div>
+            <span class="field-help">The message appears for everyone currently online.</span>
+          </div>
+        </form>
+
+        <div class="table-shell">
+          <div class="table-header">
+            <div>
+              <h2>Connected players</h2>
+              <p id="players-table-summary">Waiting for player data.</p>
+            </div>
+          </div>
+          <div class="responsive-table">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Player</th>
+                  <th scope="col">Level</th>
+                  <th scope="col">Ping</th>
+                  <th scope="col">Buildings</th>
+                  <th scope="col"><span class="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody id="players-table-body"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="players-empty" hidden>
+            <strong>No one is connected</strong>
+            <span>Player controls will appear when somebody joins.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-console" data-view-panel="console" aria-labelledby="console-title" hidden>
+        <div class="page-heading console-heading">
+          <div>
+            <p class="context-label">Live output</p>
+            <h1 id="console-title">Console</h1>
+            <p class="page-description">Docker logs refresh automatically. Commands are sent over RCON.</p>
+          </div>
+          <button class="button button-secondary" type="button" id="clear-console">Clear view</button>
+        </div>
+
+        <section class="terminal" aria-label="Server console">
+          <div class="terminal-bar">
+            <span>palworld / server output</span>
+            <span id="console-status">Connecting to logs</span>
+          </div>
+          <pre id="console-output" tabindex="0" aria-live="polite">Waiting for server logs...</pre>
+          <form class="console-form" id="console-form">
+            <label for="console-command">RCON command</label>
+            <div class="console-input-row">
+              <span aria-hidden="true">&gt;</span>
+              <input id="console-command" name="command" maxlength="500" autocomplete="off" spellcheck="false" placeholder="Info">
+              <button type="submit">Run command</button>
+            </div>
+          </form>
+        </section>
+      </section>
+
+      <section class="view" id="view-utilities" data-view-panel="utilities" aria-labelledby="utilities-title" hidden>
+        <div class="page-heading">
+          <div>
+            <p class="context-label">Maintenance</p>
+            <h1 id="utilities-title">Keep the world safe.</h1>
+            <p class="page-description">Back up first, update carefully, and give players time before shutdown.</p>
+          </div>
+        </div>
+
+        <div class="utility-layout">
+          <section class="utility-section" aria-labelledby="power-title">
+            <div class="section-heading">
+              <div>
+                <h2 id="power-title">Server lifecycle</h2>
+                <p>Power controls for this single server.</p>
+              </div>
+            </div>
+            <div class="action-list">
+              <div class="action-row">
+                <div>
+                  <strong>Start server</strong>
+                  <span>Start the configured Palworld server process.</span>
+                </div>
+                <button class="button button-secondary" type="button" data-action="start">Start</button>
+              </div>
+              <div class="action-row">
+                <div>
+                  <strong>Graceful shutdown</strong>
+                  <span>Warn players, save, then stop through the game API.</span>
+                </div>
+                <button class="button button-secondary" type="button" data-action="shutdown">Shut down</button>
+              </div>
+              <div class="action-row">
+                <div>
+                  <strong>Restart server</strong>
+                  <span>Save, stop, and relaunch the configured server.</span>
+                </div>
+                <button class="button button-secondary" type="button" data-action="restart">Restart</button>
+              </div>
+              <div class="action-row">
+                <div>
+                  <strong>Update server</strong>
+                  <span>Run the configured server update and validation workflow.</span>
+                </div>
+                <button class="button button-secondary" type="button" data-action="update" id="update-button">Update</button>
+              </div>
+              <div class="action-row danger-row">
+                <div>
+                  <strong>Force stop</strong>
+                  <span>Use only when the normal shutdown path has failed.</span>
+                </div>
+                <button class="button button-danger" type="button" data-action="force-stop">Force stop</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="utility-section" aria-labelledby="backup-title">
+            <div class="section-heading">
+              <div>
+                <h2 id="backup-title">Backups</h2>
+                <p>Zip snapshots stored outside the live save directory.</p>
+              </div>
+              <button class="button button-primary" type="button" data-action="backup" id="backup-button">Create backup</button>
+            </div>
+            <div class="backup-list" id="backup-list">
+              <div class="empty-state compact">
+                <strong>No backups found</strong>
+                <span>Create one before the next server update.</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="utility-section utility-wide" aria-labelledby="connection-title">
+            <div class="section-heading">
+              <div>
+                <h2 id="connection-title">Connection health</h2>
+                <p>Read-only information from the configured services.</p>
+              </div>
+            </div>
+            <dl class="connection-grid">
+              <div>
+                <dt>Game API</dt>
+                <dd id="connection-rest">Checking</dd>
+              </div>
+              <div>
+                <dt>Docker container</dt>
+                <dd id="connection-docker">Checking</dd>
+              </div>
+              <div>
+                <dt>RCON</dt>
+                <dd id="connection-rcon">Checking configuration</dd>
+              </div>
+              <div>
+                <dt>Backups</dt>
+                <dd id="connection-backup">Checking configuration</dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="view-settings" data-view-panel="settings" aria-labelledby="settings-title" hidden>
+        <div class="page-heading settings-page-heading">
+          <div>
+            <p class="context-label">Official Palworld controls</p>
+            <h1 id="settings-title">Plan the next Game Night.</h1>
+            <p class="page-description">Apply a ready-made profile or tune every supported gameplay setting yourself.</p>
+          </div>
+          <div class="primary-actions">
+            <button class="button button-secondary" type="button" id="rollback-settings-button" disabled>Undo last change</button>
+            <button class="button button-primary" type="button" id="apply-settings-button" disabled>Apply changes</button>
+          </div>
+        </div>
+
+        <div class="settings-notice" id="settings-notice" role="status">
+          <div>
+            <strong>Safe restart workflow</strong>
+            <span>PAL CTRL saves the world, creates a backup, writes the configuration, restarts Palworld and verifies recovery.</span>
+          </div>
+          <span class="restart-badge">Restart required</span>
+        </div>
+
+        <section class="preset-section" aria-labelledby="presets-title">
+          <div class="section-heading">
+            <div>
+              <h2 id="presets-title">Game Night presets</h2>
+              <p>Fast profiles for the nights when the group wants a different pace.</p>
+            </div>
+            <span class="settings-source" id="settings-source">Loading current settings</span>
+          </div>
+          <div class="preset-grid" id="preset-grid" aria-live="polite">
+            <div class="settings-loading" aria-hidden="true">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-workspace" aria-labelledby="advanced-settings-title">
+          <div class="settings-toolbar">
+            <div>
+              <h2 id="advanced-settings-title">Advanced settings</h2>
+              <p id="settings-summary">Loading Pocketpair's official settings catalog.</p>
+            </div>
+            <div class="settings-toolbar-actions">
+              <label class="settings-search" for="settings-search">
+                <span>Search</span>
+                <input id="settings-search" type="search" autocomplete="off" placeholder="Damage, breeding, bases">
+              </label>
+              <button class="quiet-button" id="discard-settings-button" type="button" disabled>Discard edits</button>
+            </div>
+          </div>
+
+          <div class="settings-layout">
+            <nav class="settings-categories" id="settings-categories" aria-label="Settings categories"></nav>
+            <div class="settings-controls">
+              <div class="settings-group-heading">
+                <div>
+                  <h3 id="settings-group-title">Settings</h3>
+                  <p id="settings-group-description">Choose a category to begin.</p>
+                </div>
+                <span class="pending-change-count" id="pending-change-count">No pending changes</span>
+              </div>
+              <form id="settings-form">
+                <div class="settings-field-list" id="settings-field-list">
+                  <div class="settings-loading settings-loading-fields" aria-hidden="true">
+                    <span></span><span></span><span></span><span></span>
+                  </div>
+                </div>
+              </form>
+              <div class="settings-empty" id="settings-empty" hidden>
+                <strong>No matching settings</strong>
+                <span>Try another category or search phrase.</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="login-layer" id="login-layer" hidden>
+    <form class="login-panel" id="login-form">
+      <span class="brand-mark login-mark" aria-hidden="true">P</span>
+      <h1>Unlock PAL CTRL</h1>
+      <p>This panel controls your private Palworld server.</p>
+      <div class="field">
+        <label for="panel-password">Panel password</label>
+        <input id="panel-password" name="password" type="password" autocomplete="current-password" required>
+        <span class="field-error" id="login-error" role="alert"></span>
+      </div>
+      <button class="button button-primary login-button" type="submit">Unlock panel</button>
+    </form>
+  </div>
+
+  <dialog class="confirm-dialog" id="confirm-dialog">
+    <form method="dialog">
+      <span class="dialog-label">Confirm action</span>
+      <h2 id="confirm-title">Continue?</h2>
+      <p id="confirm-message">This action affects the running server.</p>
+      <div class="dialog-actions">
+        <button class="button button-secondary" value="cancel">Cancel</button>
+        <button class="button button-primary" value="confirm" id="confirm-submit">Continue</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="confirm-dialog settings-confirm-dialog" id="settings-confirm-dialog">
+    <form method="dialog">
+      <span class="dialog-label">Review settings</span>
+      <h2 id="settings-confirm-title">Apply changes?</h2>
+      <p id="settings-confirm-message">Players will be disconnected during the safe restart.</p>
+      <div class="settings-change-preview" id="settings-change-preview"></div>
+      <div class="dialog-actions">
+        <button class="button button-secondary" value="cancel">Cancel</button>
+        <button class="button button-primary" value="confirm" id="settings-confirm-submit">Apply and restart</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
