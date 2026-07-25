@@ -1,0 +1,2 @@
+# palworld-server-control
+
