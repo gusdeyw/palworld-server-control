@@ -165,7 +165,27 @@ Returns recent Docker or native process log lines.
 
 ### `GET /api/backups`
 
-Returns ZIP backup metadata sorted newest first.
+Returns ZIP backup metadata sorted newest first, plus the total count and size:
+
+```json
+{
+  "count": 2,
+  "totalSize": 391245824,
+  "backups": [
+    {
+      "name": "palworld-20260727-062532.zip",
+      "size": 195622912,
+      "createdAt": "2026-07-27T06:25:32Z"
+    }
+  ]
+}
+```
+
+### `DELETE /api/backups/{name}`
+
+Permanently deletes one regular `.zip` file from the configured backup
+directory. The filename is validated and path traversal, directories, symbolic
+links and non-ZIP files are rejected. This mutation requires `X-Pal-Control: 1`.
 
 ## Actions
 
@@ -232,8 +252,8 @@ The console uses deprecated RCON. The command is limited to 500 characters.
 
 Returns:
 
-- Eight setting groups
-- 101 definitions
+- Nine setting groups
+- 102 definitions
 - Six presets
 - Current effective values
 - Editability
@@ -242,6 +262,10 @@ Returns:
 
 Definitions include type, bounds, unit, options, description and official
 default.
+
+The Server group includes `ServerName` (required, maximum 64 characters) and
+`ServerPlayerMaxNum` (1–32). When the live REST response omits these identity
+values, PAL CTRL reads their authoritative values from `PalWorldSettings.ini`.
 
 ### `POST /api/game-settings/apply`
 

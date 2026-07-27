@@ -17,7 +17,7 @@ metrics, and provides safe control over official Palworld settings.
 - Player list with ping, level, kick and ban actions
 - World saves, announcements, graceful shutdowns, restarts and updates
 - Recent logs and a legacy RCON console
-- ZIP backups stored outside the live save directory
+- ZIP backups stored outside the live save directory with storage totals and confirmed removal
 - Six Game Night presets:
   - Normal Night
   - Fast XP Night
@@ -25,8 +25,9 @@ metrics, and provides safe control over official Palworld settings.
   - Resource Farming
   - Boss Assist
   - Boss Delete
-- 101 editable Palworld gameplay, progression, survival, world, resource, base,
+- 102 editable Palworld identity, gameplay, progression, survival, world, resource, base,
   player and performance controls
+- Editable server name and simultaneous-player capacity
 - Safe settings workflow with save, backup, INI snapshot, restart, health check,
   automatic recovery and one-click undo
 - One shared panel password and an HttpOnly session cookie

@@ -191,7 +191,9 @@ func (a *App) effectiveGameSettingsUnlocked(ctx context.Context) (map[string]any
 	}
 	var raw map[string]any
 	if err := a.pal.Get(ctx, "/v1/api/settings", &raw); err == nil {
-		return mergeEffectiveSettings(raw), "live API", nil
+		values := mergeEffectiveSettings(raw)
+		overlayIdentitySettingsFromINI(values, a.cfg.SettingsPath)
+		return values, "live API + configuration", nil
 	}
 	data, err := os.ReadFile(a.cfg.SettingsPath)
 	if err != nil {

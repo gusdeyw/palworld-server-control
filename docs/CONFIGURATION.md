@@ -141,8 +141,9 @@ RCON is optional if the legacy console is not needed.
 
 ## Game Night catalog
 
-The settings page groups 101 official controls into:
+The settings page groups 102 official controls into:
 
+- Server
 - Combat
 - Progression
 - Survival
@@ -151,6 +152,10 @@ The settings page groups 101 official controls into:
 - Bases
 - Players
 - Performance
+
+The Server category exposes `ServerName` and `ServerPlayerMaxNum`. Both are
+written through the same validated, backed-up restart workflow as gameplay
+settings.
 
 The browser cannot edit infrastructure fields such as:
 

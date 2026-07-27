@@ -7,9 +7,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
+)
+
+var (
+	errInvalidBackupName = errors.New("invalid backup name")
+	backupNamePattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*\.zip$`)
 )
 
 type Backup struct {
@@ -157,4 +163,40 @@ func listBackups(backupDir string, mock bool) ([]Backup, error) {
 		return backups[i].CreatedAt.After(backups[j].CreatedAt)
 	})
 	return backups, nil
+}
+
+func deleteBackup(backupDir, name string, mock bool) (Backup, error) {
+	name = strings.TrimSpace(name)
+	if !validBackupName(name) {
+		return Backup{}, errInvalidBackupName
+	}
+	if mock {
+		return Backup{Name: name, Size: 184 * 1024 * 1024, CreatedAt: time.Now()}, nil
+	}
+
+	directory, err := filepath.Abs(backupDir)
+	if err != nil {
+		return Backup{}, err
+	}
+	target := filepath.Join(directory, name)
+	relative, err := filepath.Rel(directory, target)
+	if err != nil || relative != name || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return Backup{}, errInvalidBackupName
+	}
+	info, err := os.Lstat(target)
+	if err != nil {
+		return Backup{}, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return Backup{}, errors.New("backup target is not a regular file")
+	}
+	deleted := Backup{Name: name, Size: info.Size(), CreatedAt: info.ModTime()}
+	if err := os.Remove(target); err != nil {
+		return Backup{}, err
+	}
+	return deleted, nil
+}
+
+func validBackupName(name string) bool {
+	return filepath.Base(name) == name && backupNamePattern.MatchString(name)
 }

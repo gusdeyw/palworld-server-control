@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -65,6 +67,29 @@ OptionSettings=(ServerName="Friends, Inc.",AdminPassword="test-admin-secret",Ser
 	}
 }
 
+func TestApplyINIChangesUpdatesServerIdentityAndCapacity(t *testing.T) {
+	input := `[/Script/Pal.PalGameWorldSettings]
+OptionSettings=(ServerName="Palpagos After Hours",ServerPlayerMaxNum=32,AdminPassword="keep-secret",ServerPassword="keep-game-secret")
+`
+	updated, err := applyINIChanges(input, map[string]any{
+		"ServerName":         "Allforyou",
+		"ServerPlayerMaxNum": 10,
+	})
+	if err != nil {
+		t.Fatalf("applyINIChanges returned an error: %v", err)
+	}
+	for _, expected := range []string{
+		`ServerName="Allforyou"`,
+		`ServerPlayerMaxNum=10`,
+		`AdminPassword="keep-secret"`,
+		`ServerPassword="keep-game-secret"`,
+	} {
+		if !strings.Contains(updated, expected) {
+			t.Fatalf("updated INI does not contain %q:\n%s", expected, updated)
+		}
+	}
+}
+
 func TestParseINIValuesUsesDefaultsForMissingSettings(t *testing.T) {
 	input := `[/Script/Pal.PalGameWorldSettings]
 OptionSettings=(ExpRate=2.500000,bEnableFriendlyFire=True,DenyTechnologyList=("PALBOX","RepairBench"))
@@ -98,6 +123,15 @@ func TestValidateSettingChangesRejectsUnknownAndUnsafeValues(t *testing.T) {
 	if _, err := validateSettingChanges(map[string]any{"DenyTechnologyList": []any{"PALBOX", "bad,value"}}); err == nil {
 		t.Fatal("expected unsafe list punctuation to be rejected")
 	}
+	if _, err := validateSettingChanges(map[string]any{"ServerName": "   "}); err == nil {
+		t.Fatal("expected an empty server name to be rejected")
+	}
+	if _, err := validateSettingChanges(map[string]any{"ServerName": strings.Repeat("界", 65)}); err == nil {
+		t.Fatal("expected a server name longer than 64 characters to be rejected")
+	}
+	if _, err := validateSettingChanges(map[string]any{"ServerPlayerMaxNum": 33}); err == nil {
+		t.Fatal("expected a player limit above Palworld's maximum to be rejected")
+	}
 }
 
 func TestMergeEffectiveSettingsSupportsPalworldAPIKeyCasing(t *testing.T) {
@@ -111,6 +145,26 @@ func TestMergeEffectiveSettingsSupportsPalworldAPIKeyCasing(t *testing.T) {
 	}
 	if values["ExpRate"] != 1.75 {
 		t.Fatalf("unexpected experience value: %#v", values["ExpRate"])
+	}
+}
+
+func TestOverlayIdentitySettingsUsesAuthoritativeINIValues(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "PalWorldSettings.ini")
+	content := `[/Script/Pal.PalGameWorldSettings]
+OptionSettings=(ServerName="Allforyou",ServerPlayerMaxNum=10)
+`
+	if err := os.WriteFile(path, []byte(content), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	values := mergeEffectiveSettings(map[string]any{
+		"ServerPlayerMaxNum": float64(32),
+	})
+	overlayIdentitySettingsFromINI(values, path)
+	if values["ServerName"] != "Allforyou" {
+		t.Fatalf("unexpected server name: %#v", values["ServerName"])
+	}
+	if values["ServerPlayerMaxNum"] != int64(10) {
+		t.Fatalf("unexpected player limit: %#v", values["ServerPlayerMaxNum"])
 	}
 }
 

@@ -155,6 +155,7 @@ func main() {
 	mux.Handle("/api/action", app.requireAuth(app.requireMutation(http.HandlerFunc(app.handleAction))))
 	mux.Handle("/api/console", app.requireAuth(app.requireMutation(http.HandlerFunc(app.handleConsole))))
 	mux.Handle("/api/backups", app.requireAuth(http.HandlerFunc(app.handleBackups)))
+	mux.Handle("/api/backups/", app.requireAuth(app.requireMutation(http.HandlerFunc(app.handleDeleteBackup))))
 	mux.Handle("/api/game-settings", app.requireAuth(http.HandlerFunc(app.handleGameSettings)))
 	mux.Handle("/api/game-settings/apply", app.requireAuth(app.requireMutation(http.HandlerFunc(app.handleApplyGameSettings))))
 	mux.Handle("/api/game-settings/rollback", app.requireAuth(app.requireMutation(http.HandlerFunc(app.handleRollbackGameSettings))))
@@ -541,7 +542,40 @@ func (a *App) handleBackups(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, friendlyError(err))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"backups": backups})
+	var totalSize int64
+	for _, backup := range backups {
+		totalSize += backup.Size
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"backups":   backups,
+		"count":     len(backups),
+		"totalSize": totalSize,
+	})
+}
+
+func (a *App) handleDeleteBackup(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		writeError(w, http.StatusMethodNotAllowed, "DELETE required")
+		return
+	}
+	name := strings.TrimPrefix(r.URL.Path, "/api/backups/")
+	deleted, err := deleteBackup(a.cfg.BackupDir, name, a.cfg.Mock)
+	switch {
+	case errors.Is(err, errInvalidBackupName):
+		writeError(w, http.StatusBadRequest, "Invalid backup name")
+		return
+	case errors.Is(err, os.ErrNotExist):
+		writeError(w, http.StatusNotFound, "Backup not found")
+		return
+	case err != nil:
+		writeError(w, http.StatusInternalServerError, friendlyError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"message": "Backup deleted: " + deleted.Name,
+		"deleted": deleted,
+	})
 }
 
 func (a *App) sampleLoop() {

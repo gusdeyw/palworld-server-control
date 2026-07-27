@@ -12,7 +12,7 @@
     chartResizeObserver: null,
     settingsData: null,
     settingsDraft: new Map(),
-    settingsGroup: "combat",
+    settingsGroup: "server",
     settingsSearch: "",
     settingsLoading: false,
     pendingSettingsAction: null,
@@ -352,6 +352,9 @@
     try {
       const result = await api("/api/backups");
       const backups = Array.isArray(result.backups) ? result.backups : [];
+      el("backup-summary").textContent = backups.length
+        ? `${backups.length} ${backups.length === 1 ? "backup" : "backups"} · ${formatBytes(result.totalSize || 0)} stored`
+        : "No ZIP backups are using storage.";
       list.replaceChildren();
       if (!backups.length) {
         list.append(emptyState("No backups found", "Create one before the next server update.", true));
@@ -369,14 +372,41 @@
           timeStyle: "short",
         });
         info.append(name, date);
+        const controls = document.createElement("div");
+        controls.className = "backup-controls";
         const size = document.createElement("span");
         size.className = "backup-size";
         size.textContent = formatBytes(backup.size);
-        row.append(info, size);
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "mini-button is-danger";
+        remove.textContent = "Remove";
+        remove.dataset.backupDelete = backup.name;
+        remove.dataset.backupSize = String(backup.size || 0);
+        controls.append(size, remove);
+        row.append(info, controls);
         list.append(row);
       });
     } catch (error) {
+      el("backup-summary").textContent = "Backup storage unavailable.";
       list.replaceChildren(emptyState("Backups unavailable", error.message, true));
+    }
+  }
+
+  async function removeBackup(name, trigger) {
+    trigger.disabled = true;
+    trigger.setAttribute("aria-busy", "true");
+    try {
+      const result = await api(`/api/backups/${encodeURIComponent(name)}`, {
+        method: "DELETE",
+        body: "{}",
+      });
+      toast(result.message || `Backup deleted: ${name}`);
+      await loadBackups();
+    } catch (error) {
+      toast(error.message, true);
+      trigger.disabled = false;
+      trigger.removeAttribute("aria-busy");
     }
   }
 
@@ -765,6 +795,8 @@
       input.dataset.settingKey = definition.key;
       input.type = definition.type === "text" ? "text" : "number";
       input.value = value ?? "";
+      if (definition.required) input.required = true;
+      if (definition.maxLength) input.maxLength = Number(definition.maxLength);
       if (definition.min !== undefined) input.min = String(definition.min);
       if (definition.max !== undefined) input.max = String(definition.max);
       if (definition.step !== undefined) input.step = String(definition.step);
@@ -986,12 +1018,12 @@
     performAction({ action }, button);
   }
 
-  function confirmAction(title, message, onConfirm, danger = false) {
+  function confirmAction(title, message, onConfirm, danger = false, confirmLabel = "") {
     const dialog = el("confirm-dialog");
     el("confirm-title").textContent = title;
     el("confirm-message").textContent = message;
     const submit = el("confirm-submit");
-    submit.textContent = danger ? "Force stop" : "Continue";
+    submit.textContent = confirmLabel || (danger ? "Force stop" : "Continue");
     submit.className = `button ${danger ? "button-danger" : "button-primary"}`;
     app.pendingAction = onConfirm;
     dialog.showModal();
@@ -1096,6 +1128,19 @@
     el("report-archive").addEventListener("click", (event) => {
       const button = event.target.closest("[data-report-date]");
       if (button) loadDailyReport(button.dataset.reportDate);
+    });
+    el("backup-list").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-backup-delete]");
+      if (!button) return;
+      const name = button.dataset.backupDelete;
+      const size = formatBytes(button.dataset.backupSize);
+      confirmAction(
+        "Delete this backup?",
+        `${name} (${size}) will be permanently removed. This cannot be undone.`,
+        () => removeBackup(name, button),
+        true,
+        "Delete backup",
+      );
     });
     el("logout-button").addEventListener("click", async () => {
       try {

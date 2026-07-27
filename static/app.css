@@ -1047,6 +1047,16 @@ tbody tr:last-child td {
   font-size: 11px;
 }
 
+.backup-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.backup-controls .backup-size {
+  margin: 0;
+}
+
 .connection-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   padding-top: 2px;
@@ -2206,6 +2216,14 @@ tbody tr:last-child td {
 
   .action-row .button {
     width: 100%;
+  }
+
+  .backup-row {
+    grid-template-columns: 1fr;
+  }
+
+  .backup-controls {
+    justify-content: space-between;
   }
 
   .settings-notice {

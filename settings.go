@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 type SettingOption struct {
@@ -34,6 +35,8 @@ type SettingDefinition struct {
 	Default     any             `json:"default"`
 	Options     []SettingOption `json:"options,omitempty"`
 	Warning     string          `json:"warning,omitempty"`
+	Required    bool            `json:"required,omitempty"`
+	MaxLength   int             `json:"maxLength,omitempty"`
 	BareString  bool            `json:"-"`
 }
 
@@ -79,6 +82,7 @@ func number(value float64) *float64 {
 
 func gameSettingGroups() []SettingGroup {
 	return []SettingGroup{
+		{ID: "server", Name: "Server", Description: "Server identity, connection capacity and session limits."},
 		{ID: "combat", Name: "Combat", Description: "Damage, durability, death, raids and boss difficulty."},
 		{ID: "progression", Name: "Progression", Description: "Experience, capture, breeding, work and technology rules."},
 		{ID: "survival", Name: "Survival", Description: "Time, hunger, stamina, regeneration, weight and item decay."},
@@ -111,6 +115,9 @@ func gameSettingDefinitions() []SettingDefinition {
 	}
 
 	return []SettingDefinition{
+		{Key: "ServerName", Label: "Server name", Description: "Name shown in Palworld's server browser and connection details.", Group: "server", Type: "text", Default: "Default Palworld Server", Required: true, MaxLength: 64},
+		integer("ServerPlayerMaxNum", "Maximum players", "Maximum number of players who may be connected at the same time.", "server", 32, 1, 32),
+
 		{Key: "Difficulty", Label: "Difficulty profile", Description: "Base difficulty profile used before individual multipliers.", Group: "combat", Type: "select", Default: "None", BareString: true, Options: []SettingOption{{Value: "None", Label: "Custom / None"}, {Value: "Normal", Label: "Normal"}, {Value: "Hard", Label: "Hard"}}},
 		rate("PlayerDamageRateAttack", "Player damage dealt", "Multiplier for damage dealt directly by players.", "combat", 1),
 		rate("PlayerDamageRateDefense", "Player damage received", "Multiplier for damage taken by players. Lower values make players tougher.", "combat", 1),
@@ -187,7 +194,6 @@ func gameSettingDefinitions() []SettingDefinition {
 		integer("AutoTransferMasterCheckIntervalSeconds", "Guild master check interval", "Seconds between automatic guild-master transfer checks.", "bases", 3600, 30, 604800),
 		integer("AutoTransferMasterThresholdDays", "Guild master transfer threshold", "Offline days before guild-master transfer eligibility.", "bases", 14, 1, 3650),
 
-		integer("ServerPlayerMaxNum", "Server player limit", "Maximum simultaneous players on this dedicated server.", "players", 32, 1, 32),
 		integer("CoopPlayerMaxNum", "Co-op player limit", "Maximum players used by co-op sessions.", "players", 4, 1, 32),
 		integer("GuildPlayerMaxNum", "Guild member limit", "Maximum number of players in one guild.", "players", 20, 1, 100),
 		toggle("bIsPvP", "PvP", "Allows players to fight other players.", "players", false),
@@ -320,8 +326,15 @@ func normalizeSettingValue(definition SettingDefinition, value any) (any, error)
 			return nil, errors.New("must be text")
 		}
 		typed = strings.TrimSpace(typed)
-		if len(typed) > 200 {
-			return nil, errors.New("must be 200 characters or fewer")
+		if definition.Required && typed == "" {
+			return nil, errors.New("cannot be empty")
+		}
+		maxLength := definition.MaxLength
+		if maxLength <= 0 {
+			maxLength = 200
+		}
+		if utf8.RuneCountInString(typed) > maxLength {
+			return nil, fmt.Errorf("must be %d characters or fewer", maxLength)
 		}
 		for _, character := range typed {
 			if unicode.IsControl(character) {
@@ -659,6 +672,25 @@ func mergeEffectiveSettings(raw map[string]any) map[string]any {
 	return values
 }
 
+func overlayIdentitySettingsFromINI(values map[string]any, settingsPath string) {
+	if strings.TrimSpace(settingsPath) == "" {
+		return
+	}
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return
+	}
+	configured, err := parseINIValues(string(data))
+	if err != nil {
+		return
+	}
+	for _, key := range []string{"ServerName", "ServerPlayerMaxNum"} {
+		if value, ok := configured[key]; ok {
+			values[key] = value
+		}
+	}
+}
+
 func (a *App) effectiveGameSettings(ctx context.Context) (map[string]any, string, error) {
 	if a.cfg.Mock {
 		a.settingsMu.Lock()
@@ -670,7 +702,9 @@ func (a *App) effectiveGameSettings(ctx context.Context) (map[string]any, string
 	}
 	var raw map[string]any
 	if err := a.pal.Get(ctx, "/v1/api/settings", &raw); err == nil {
-		return mergeEffectiveSettings(raw), "live API", nil
+		values := mergeEffectiveSettings(raw)
+		overlayIdentitySettingsFromINI(values, a.cfg.SettingsPath)
+		return values, "live API + configuration", nil
 	}
 	if strings.TrimSpace(a.cfg.SettingsPath) == "" {
 		return nil, "", errors.New("PALWORLD_SETTINGS_PATH is not configured")

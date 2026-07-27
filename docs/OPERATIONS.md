@@ -30,6 +30,13 @@ be lost.
 
 ## Game Night presets
 
+### Server identity and capacity
+
+Open **Game Night → Server** to change the name shown by Palworld and the
+maximum number of simultaneous players. The player limit accepts Palworld's
+supported range of 1–32. Both settings use the same safe save, backup, restart
+and automatic-recovery workflow as gameplay changes.
+
 | Preset | Purpose |
 | --- | --- |
 | Normal Night | Restores the baseline captured before the first preset |
@@ -67,7 +74,7 @@ settings snapshot exists.
 
 ## Advanced settings
 
-Use search or select one of the eight categories. Edited rows receive a visible
+Use search or select one of the nine categories. Edited rows receive a visible
 changed state, and the navigation shows the number of pending changes.
 
 Select **Discard edits** to reset the browser draft. Select **Apply changes** to
@@ -91,6 +98,12 @@ Recommended schedule:
 
 Periodically copy important backups away from the VPS. Backups stored only on
 the same disk do not protect against disk failure or provider loss.
+
+The Backups panel shows the combined ZIP storage usage. Select **Remove** beside
+an obsolete archive and confirm the permanent deletion to reclaim disk space.
+PAL CTRL only permits removal of regular `.zip` files inside its configured
+backup directory; report CSVs, settings history and deployment archives are
+outside this action.
 
 ## Daily measurement reports
 
