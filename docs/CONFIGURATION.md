@@ -76,6 +76,31 @@ backup destination are writable.
 | `PALWORLD_SHUTDOWN_WAIT` | `15` | Default graceful shutdown delay |
 | `PALWORLD_SHUTDOWN_MESSAGE` | Friendly default | Player-facing shutdown message |
 
+## Network monitoring
+
+PAL CTRL sends low-rate UDP DNS probes directly to independent external
+resolvers. This does not require raw ICMP privileges or additional container
+capabilities. Results are aggregated into a rolling latency and packet-loss
+window and exposed in the state API and dashboard issue banner.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `NETWORK_PROBE_TARGETS` | `1.1.1.1:53,8.8.8.8:53` | Comma-separated UDP DNS probe targets; empty disables monitoring |
+| `NETWORK_PROBE_INTERVAL` | `5s` | Delay between probe cycles, minimum one second |
+| `NETWORK_PROBE_TIMEOUT` | `2s` | Per-target response timeout, minimum 100 milliseconds |
+| `NETWORK_PROBE_WINDOW` | `20` | Rolling samples retained per target, minimum four |
+| `NETWORK_DEGRADED_LOSS` | `5` | Packet-loss percentage that raises a degraded warning |
+| `NETWORK_CRITICAL_LOSS` | `20` | Packet-loss percentage that raises a critical warning |
+
+With two default targets and a window of 20, the dashboard summarizes the most
+recent 40 probes. Monitoring starts warning only after at least ten total
+samples have been collected, or after the complete window when configured
+smaller.
+
+These probes measure the VPS's outbound UDP path and the return path from the
+configured targets. They cannot replace an external monitor testing the
+player-facing route into the VPS.
+
 ## Palworld requirements
 
 The Palworld INI must enable:
@@ -127,4 +152,3 @@ Use different passwords for:
 Do not use the sample password in production. Passwords belong only in the
 server-side `.env` and Palworld configuration, never in documentation, source
 control, issue reports or screenshots.
-

@@ -12,6 +12,7 @@ metrics, and provides safe control over official Palworld settings.
 ## Highlights
 
 - Live server status, FPS, frame time, uptime, CPU, memory and player count
+- Rolling UDP latency and packet-loss health with degraded/critical warnings
 - Player list with ping, level, kick and ban actions
 - World saves, announcements, graceful shutdowns, restarts and updates
 - Recent logs and a legacy RCON console
@@ -144,4 +145,3 @@ strategy.
 - [Security](docs/SECURITY.md)
 - [HTTP API](docs/API.md)
 - [Development](docs/DEVELOPMENT.md)
-

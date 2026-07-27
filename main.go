@@ -44,6 +44,12 @@ type Config struct {
 	SettingsPath     string
 	SettingsStateDir string
 	MetricsInterval  time.Duration
+	NetworkTargets   []string
+	NetworkInterval  time.Duration
+	NetworkTimeout   time.Duration
+	NetworkWindow    int
+	NetworkDegraded  float64
+	NetworkCritical  float64
 	ShutdownWait     int
 	ShutdownMessage  string
 }
@@ -54,12 +60,15 @@ type Sample struct {
 	FrameTime   float64   `json:"frameTime"`
 	Players     int       `json:"players"`
 	MemoryUsage string    `json:"memoryUsage,omitempty"`
+	LatencyMS   float64   `json:"latencyMs"`
+	PacketLoss  float64   `json:"packetLoss"`
 }
 
 type App struct {
 	cfg          Config
 	pal          *PalClient
 	docker       *DockerManager
+	network      *NetworkMonitor
 	session      string
 	historyMu    sync.RWMutex
 	history      []Sample
@@ -103,11 +112,21 @@ func main() {
 			cfg.ControlToken,
 			cfg.Mock,
 		),
+		network: NewNetworkMonitor(
+			cfg.NetworkTargets,
+			cfg.NetworkInterval,
+			cfg.NetworkTimeout,
+			cfg.NetworkWindow,
+			cfg.NetworkDegraded,
+			cfg.NetworkCritical,
+			cfg.Mock,
+		),
 		session: session,
 		history: make([]Sample, 0, 2880),
 	}
 
 	go app.sampleLoop()
+	go app.network.Run(context.Background())
 
 	staticRoot, err := fs.Sub(staticFiles, "static")
 	if err != nil {
@@ -165,6 +184,12 @@ func loadConfig() Config {
 		SettingsPath:     env("PALWORLD_SETTINGS_PATH", ""),
 		SettingsStateDir: env("PALWORLD_SETTINGS_STATE_DIR", "./backups/settings"),
 		MetricsInterval:  envDuration("METRICS_INTERVAL", 30*time.Second),
+		NetworkTargets:   strings.Split(env("NETWORK_PROBE_TARGETS", "1.1.1.1:53,8.8.8.8:53"), ","),
+		NetworkInterval:  envDurationMin("NETWORK_PROBE_INTERVAL", 5*time.Second, time.Second),
+		NetworkTimeout:   envDurationMin("NETWORK_PROBE_TIMEOUT", 2*time.Second, 100*time.Millisecond),
+		NetworkWindow:    envInt("NETWORK_PROBE_WINDOW", 20),
+		NetworkDegraded:  envFloat("NETWORK_DEGRADED_LOSS", 5),
+		NetworkCritical:  envFloat("NETWORK_CRITICAL_LOSS", 20),
 		ShutdownWait:     envInt("PALWORLD_SHUTDOWN_WAIT", 15),
 		ShutdownMessage:  env("PALWORLD_SHUTDOWN_MESSAGE", "Server is shutting down. See you soon."),
 	}
@@ -260,6 +285,13 @@ func (a *App) handleState(w http.ResponseWriter, r *http.Request) {
 	if dockerRes.err != nil && !a.cfg.Mock {
 		issues = append(issues, "Docker: "+friendlyError(dockerRes.err))
 	}
+	network := NetworkHealth{Status: networkStatusDisabled, Targets: []NetworkTargetHealth{}}
+	if a.network != nil {
+		network = a.network.Health()
+		if issue := a.network.Issue(); issue != "" {
+			issues = append(issues, issue)
+		}
+	}
 
 	online := palRes.err == nil
 	controlMode := "docker"
@@ -278,6 +310,7 @@ func (a *App) handleState(w http.ResponseWriter, r *http.Request) {
 		"players":         palRes.state.Players,
 		"settings":        palRes.state.Settings,
 		"host":            dockerRes.stats,
+		"network":         network,
 		"issues":          issues,
 		"sampleMode":      a.cfg.Mock,
 		"updatedAt":       time.Now().UTC(),
@@ -504,12 +537,18 @@ func (a *App) sampleLoop() {
 		host, _ := a.docker.Stats(ctx)
 		cancel()
 		if err == nil {
+			network := NetworkHealth{}
+			if a.network != nil {
+				network = a.network.Health()
+			}
 			sample := Sample{
 				At:          time.Now().UTC(),
 				FPS:         palState.Metrics.ServerFPS,
 				FrameTime:   palState.Metrics.ServerFrameTime,
 				Players:     palState.Metrics.CurrentPlayerNum,
 				MemoryUsage: host.MemoryUsage,
+				LatencyMS:   network.LatencyMS,
+				PacketLoss:  network.PacketLoss,
 			}
 			a.historyMu.Lock()
 			a.history = append(a.history, sample)
@@ -640,13 +679,29 @@ func envInt(key string, fallback int) int {
 	return parsed
 }
 
+func envFloat(key string, fallback float64) float64 {
+	value, ok := os.LookupEnv(key)
+	if !ok {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
 func envDuration(key string, fallback time.Duration) time.Duration {
+	return envDurationMin(key, fallback, 5*time.Second)
+}
+
+func envDurationMin(key string, fallback, minimum time.Duration) time.Duration {
 	value, ok := os.LookupEnv(key)
 	if !ok {
 		return fallback
 	}
 	parsed, err := time.ParseDuration(strings.TrimSpace(value))
-	if err != nil || parsed < 5*time.Second {
+	if err != nil || parsed < minimum {
 		return fallback
 	}
 	return parsed
@@ -674,6 +729,8 @@ func mockHistory() []Sample {
 			FrameTime:   1000 / fps,
 			Players:     (index / 16) % 4,
 			MemoryUsage: "7.82GiB / 16GiB",
+			LatencyMS:   34.8 + float64((index%7)-3),
+			PacketLoss:  0,
 		}
 	}
 	return points

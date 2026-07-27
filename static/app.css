@@ -442,7 +442,7 @@ button[aria-busy="true"] {
 
 .metric-strip {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
@@ -491,6 +491,23 @@ button[aria-busy="true"] {
 
 .status-value.is-offline {
   color: var(--danger);
+}
+
+.network-value.is-healthy {
+  color: var(--accent);
+}
+
+.network-value.is-degraded {
+  color: #e6c67a;
+}
+
+.network-value.is-critical {
+  color: var(--danger);
+}
+
+.network-value.is-collecting,
+.network-value.is-disabled {
+  color: var(--muted-strong);
 }
 
 .metric-note {
@@ -1703,7 +1720,7 @@ tbody tr:last-child td {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .metric:nth-child(4) {
+  .metric:nth-child(3n + 1) {
     padding-left: 0;
     border-left: 0;
   }

@@ -65,7 +65,7 @@
 
     <main id="main-content" tabindex="-1">
       <div class="issue-banner" id="issue-banner" role="status" hidden>
-        <strong>Some data is unavailable</strong>
+        <strong>Server attention needed</strong>
         <span id="issue-message"></span>
       </div>
 
@@ -108,6 +108,11 @@
             <span class="metric-label">CPU</span>
             <strong class="metric-value" id="metric-cpu">-</strong>
             <span class="metric-note">process load</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Network</span>
+            <strong class="metric-value network-value is-collecting" id="metric-network">Checking</strong>
+            <span class="metric-note" id="metric-network-loss">Awaiting probes</span>
           </div>
           <div class="metric">
             <span class="metric-label">Uptime</span>

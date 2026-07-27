@@ -88,6 +88,7 @@
     const info = state.info || {};
     const metrics = state.metrics || {};
     const host = state.host || {};
+    const network = state.network || {};
     const settings = state.settings || {};
     const players = Array.isArray(state.players) ? state.players : [];
     const serverName = info.servername || "Palworld server";
@@ -115,6 +116,19 @@
     el("metric-memory").textContent = compactMemory(host.memoryUsage || "-");
     el("metric-memory-percent").textContent = host.memoryPercent ? `${host.memoryPercent} of limit` : "Memory usage";
     el("metric-cpu").textContent = host.cpuPercent || "-";
+    const networkStatus = network.status || "collecting";
+    const networkValue = el("metric-network");
+    networkValue.textContent = network.enabled && Number.isFinite(network.latencyMs) && network.received > 0
+      ? `${formatNumber(network.latencyMs, 1)} ms`
+      : network.enabled === false
+        ? "Disabled"
+        : "Checking";
+    networkValue.className = `metric-value network-value is-${networkStatus}`;
+    el("metric-network-loss").textContent = networkStatus === "collecting"
+      ? `Collecting ${network.sent || 0}/${network.windowSize || 0} probes`
+      : network.enabled === false
+        ? "Network monitor disabled"
+        : `${formatNumber(network.packetLoss || 0, 1)}% loss · ${networkStatus}`;
     el("metric-uptime").textContent = online ? formatDuration(metrics.uptime || 0) : "-";
     el("metric-day").textContent = Number.isFinite(metrics.days) ? `World day ${metrics.days}` : "World day unknown";
     el("nav-player-count").textContent = String(players.length);

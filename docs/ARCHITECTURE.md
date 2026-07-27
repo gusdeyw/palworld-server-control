@@ -41,6 +41,7 @@ The Go process owns:
 - Password authentication and the in-memory session token
 - REST aggregation for server state
 - A 24-hour in-memory metric history
+- Rolling unprivileged UDP network probes and packet-loss classification
 - Docker or native Windows lifecycle control
 - ZIP backup creation
 - RCON communication for the legacy console
@@ -124,6 +125,19 @@ sequenceDiagram
 Failures from one source are reported as issues without hiding data received
 from the other source.
 
+### Network monitoring
+
+PAL CTRL sends a small DNS query over UDP to each configured external target.
+It retains a bounded rolling window per target, aggregates successful latency
+and packet loss, and classifies the result as collecting, healthy, degraded or
+critical. Degraded and critical states are included in the normal state issue
+banner.
+
+The monitor deliberately avoids raw ICMP so the container does not need
+`NET_RAW` or extra packages. Because a server cannot observe packets dropped
+before reaching its network, a separate external probe is still required for
+complete player-facing monitoring.
+
 ### Settings application
 
 ```mermaid
@@ -181,4 +195,3 @@ PAL CTRL uses one shared password:
 
 This model is appropriate for a tiny trusted group. It is not a replacement for
 individual accounts, audit logs or role-based access control.
-

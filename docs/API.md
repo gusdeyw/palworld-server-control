@@ -57,8 +57,37 @@ Returns:
 - Connected players
 - Effective settings summary
 - Host CPU, memory, network and block I/O
+- Rolling network latency, packet loss, status and per-target probe results
 - Current integration issues
 - Enabled feature flags
+
+The `network` object uses `collecting`, `healthy`, `degraded`, `critical` or
+`disabled` status. Packet loss and latency are calculated over a rolling probe
+window:
+
+```json
+{
+  "network": {
+    "enabled": true,
+    "status": "healthy",
+    "latencyMs": 35.2,
+    "packetLoss": 0,
+    "sent": 40,
+    "received": 40,
+    "windowSize": 40,
+    "updatedAt": "2026-01-01T00:00:00Z",
+    "targets": [
+      {
+        "target": "1.1.1.1:53",
+        "latencyMs": 34.1,
+        "packetLoss": 0,
+        "sent": 20,
+        "received": 20
+      }
+    ]
+  }
+}
+```
 
 ### `GET /api/history`
 
@@ -72,7 +101,9 @@ Returns the in-memory 24-hour sample history:
       "fps": 59.5,
       "frameTime": 16.8,
       "players": 2,
-      "memoryUsage": "3.2GiB / 7GiB"
+      "memoryUsage": "3.2GiB / 7GiB",
+      "latencyMs": 35.2,
+      "packetLoss": 0
     }
   ]
 }
@@ -237,4 +268,3 @@ Common status codes:
 | `502` | Palworld, Docker, RCON or restart workflow failed |
 
 Request bodies are limited to 32 KiB and unknown JSON fields are rejected.
-
