@@ -34,6 +34,12 @@ metrics, and provides safe control over official Palworld settings.
 - Responsive desktop and mobile interface
 - Sample environment for testing without a real Palworld server
 
+## Live server interface
+
+The dashboard below was captured from the live `Allforyou` deployment.
+
+![PAL CTRL live server dashboard showing server health, performance, players, and world details](docs/images/palctrl-live-dashboard.png)
+
 ## Architecture
 
 ```mermaid
