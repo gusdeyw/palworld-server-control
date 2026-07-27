@@ -92,6 +92,18 @@ Recommended schedule:
 Periodically copy important backups away from the VPS. Backups stored only on
 the same disk do not protect against disk failure or provider loss.
 
+## Daily measurement reports
+
+Open **Reports** to review the selected day's availability, latency, maximum
+packet loss, FPS and peak player count. The hourly table helps narrow an
+incident to a time window. **Download CSV** saves the original measurements for
+spreadsheets, provider support tickets or long-term storage.
+
+The report archive is independent from the in-memory Overview chart and
+survives control-app restarts. By default, PAL CTRL keeps 30 calendar days
+under the persistent backup volume and removes only expired report CSV files.
+Copy any report you need to retain longer before its retention window expires.
+
 ## Fresh-world reset
 
 A safe reset preserves configuration and moves, rather than immediately
@@ -166,4 +178,3 @@ For a small four-player server:
 
 Use server FPS and actual gameplay behavior together with CPU and memory
 metrics.
-

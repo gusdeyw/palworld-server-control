@@ -50,8 +50,12 @@
           <span class="nav-key">04</span>
           <span>Utilities</span>
         </button>
-        <button class="nav-button" type="button" data-view="settings">
+        <button class="nav-button" type="button" data-view="reports">
           <span class="nav-key">05</span>
+          <span>Reports</span>
+        </button>
+        <button class="nav-button" type="button" data-view="settings">
+          <span class="nav-key">06</span>
           <span>Game Night</span>
           <span class="nav-count nav-count-pending" id="nav-settings-count" hidden>0</span>
         </button>
@@ -364,6 +368,107 @@
                 <dd id="connection-backup">Checking configuration</dd>
               </div>
             </dl>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="view-reports" data-view-panel="reports" aria-labelledby="reports-title" hidden>
+        <div class="page-heading">
+          <div>
+            <p class="context-label">Persistent measurements</p>
+            <h1 id="reports-title">Daily reports.</h1>
+            <p class="page-description">Review server availability, game performance, latency, and packet loss recorded throughout each day.</p>
+          </div>
+          <div class="primary-actions">
+            <button class="button button-secondary" id="refresh-reports-button" type="button">Refresh reports</button>
+            <a class="button button-primary report-download" id="report-download" href="#" download aria-disabled="true" tabindex="-1">Download CSV</a>
+          </div>
+        </div>
+
+        <div class="report-toolbar">
+          <div class="report-storage-note">
+            <strong>Lightweight CSV archive</strong>
+            <span id="report-storage-note">Loading retention and timezone.</span>
+          </div>
+          <label class="report-day-picker" for="report-day">
+            <span>Report day</span>
+            <select id="report-day" disabled>
+              <option>Loading reports</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="report-summary-grid" aria-label="Selected daily report summary">
+          <div class="report-summary-card">
+            <span>API availability</span>
+            <strong id="report-online">-</strong>
+            <small id="report-samples">No samples</small>
+          </div>
+          <div class="report-summary-card">
+            <span>Average latency</span>
+            <strong id="report-latency">-</strong>
+            <small>VPS probe round trip</small>
+          </div>
+          <div class="report-summary-card">
+            <span>Maximum loss</span>
+            <strong id="report-loss">-</strong>
+            <small id="report-network-status">Awaiting report</small>
+          </div>
+          <div class="report-summary-card">
+            <span>Average FPS</span>
+            <strong id="report-fps">-</strong>
+            <small id="report-minimum-fps">No game samples</small>
+          </div>
+          <div class="report-summary-card">
+            <span>Peak players</span>
+            <strong id="report-players">-</strong>
+            <small>Highest concurrent count</small>
+          </div>
+        </div>
+
+        <div class="report-layout">
+          <section class="report-panel" aria-labelledby="hourly-report-title">
+            <div class="section-heading">
+              <div>
+                <h2 id="hourly-report-title">Hourly breakdown</h2>
+                <p id="hourly-report-description">Choose a day to inspect its measurements.</p>
+              </div>
+            </div>
+            <div class="responsive-table report-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Hour</th>
+                    <th scope="col">Network</th>
+                    <th scope="col">API online</th>
+                    <th scope="col">Avg latency</th>
+                    <th scope="col">Max loss</th>
+                    <th scope="col">Avg FPS</th>
+                    <th scope="col">Peak players</th>
+                  </tr>
+                </thead>
+                <tbody id="hourly-report-body"></tbody>
+              </table>
+            </div>
+            <div class="empty-state" id="hourly-report-empty">
+              <strong>Collecting today's report</strong>
+              <span>The first row appears after a measurement is saved.</span>
+            </div>
+          </section>
+
+          <section class="report-panel report-archive-panel" aria-labelledby="report-archive-title">
+            <div class="section-heading">
+              <div>
+                <h2 id="report-archive-title">Report archive</h2>
+                <p>Newest days first. Select one to inspect it.</p>
+              </div>
+            </div>
+            <div class="report-archive" id="report-archive">
+              <div class="empty-state compact">
+                <strong>No reports yet</strong>
+                <span>PAL CTRL will create today's file automatically.</span>
+              </div>
+            </div>
           </section>
         </div>
       </section>

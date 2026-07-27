@@ -13,6 +13,7 @@ metrics, and provides safe control over official Palworld settings.
 
 - Live server status, FPS, frame time, uptime, CPU, memory and player count
 - Rolling UDP latency and packet-loss health with degraded/critical warnings
+- Persistent daily CSV reports with summaries, hourly breakdowns and downloads
 - Player list with ping, level, kick and ban actions
 - World saves, announcements, graceful shutdowns, restarts and updates
 - Recent logs and a legacy RCON console
@@ -42,7 +43,7 @@ flowchart LR
     Panel -->|Docker socket| Docker[Docker Engine]
     Panel -->|read only| Saves[Saved data]
     Panel -->|read and write| Config[PalWorldSettings.ini]
-    Panel -->|write| Backups[Backups and settings history]
+    Panel -->|write| Backups[Backups, reports and settings history]
     Docker --> Palworld
 ```
 

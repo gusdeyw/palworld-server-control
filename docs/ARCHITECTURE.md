@@ -42,6 +42,7 @@ The Go process owns:
 - REST aggregation for server state
 - A 24-hour in-memory metric history
 - Rolling unprivileged UDP network probes and packet-loss classification
+- Persistent daily CSV measurements with retention and on-demand summaries
 - Docker or native Windows lifecycle control
 - ZIP backup creation
 - RCON communication for the legacy console
@@ -49,9 +50,9 @@ The Go process owns:
 - INI parsing, updates, snapshots and rollback
 - Embedded static assets
 
-There is no database. Restarting PAL CTRL clears only metric history and the
-current login session. Palworld saves, backups and settings history live on
-disk.
+There is no database. Restarting PAL CTRL clears only the in-memory metric
+history and current login session. Daily CSV reports, Palworld saves, backups
+and settings history live on disk.
 
 ### Palworld REST API
 
@@ -98,7 +99,7 @@ The production container uses three distinct mounts:
 | --- | --- | --- |
 | Palworld save directory | Read-only | Backups and inspection |
 | `PalWorldSettings.ini` directory | Read/write | Validated settings changes |
-| Backup directory | Read/write | ZIP archives, baseline and INI history |
+| Backup directory | Read/write | ZIP archives, daily CSV reports, baseline and INI history |
 
 PAL CTRL does not provide a file browser or arbitrary filesystem endpoint.
 

@@ -16,6 +16,8 @@
     settingsSearch: "",
     settingsLoading: false,
     pendingSettingsAction: null,
+    reports: [],
+    selectedReportDate: "",
   };
 
   const el = (id) => document.getElementById(id);
@@ -378,6 +380,188 @@
     }
   }
 
+  async function loadReports() {
+    const refreshButton = el("refresh-reports-button");
+    refreshButton.disabled = true;
+    refreshButton.setAttribute("aria-busy", "true");
+    try {
+      const result = await api("/api/reports");
+      app.reports = Array.isArray(result.reports) ? result.reports : [];
+      el("report-storage-note").textContent =
+        `${result.retentionDays || 30}-day retention · calendar timezone ${result.timezone || "UTC"}`;
+
+      const picker = el("report-day");
+      picker.replaceChildren();
+      app.reports.forEach((report) => {
+        const option = document.createElement("option");
+        option.value = report.date;
+        option.textContent = formatReportDate(report.date);
+        picker.append(option);
+      });
+      picker.disabled = app.reports.length === 0;
+
+      const existing = app.reports.some((report) => report.date === app.selectedReportDate);
+      app.selectedReportDate = existing ? app.selectedReportDate : (app.reports[0]?.date || "");
+      picker.value = app.selectedReportDate;
+      renderReportArchive();
+      if (app.selectedReportDate) {
+        await loadDailyReport(app.selectedReportDate);
+      } else {
+        renderEmptyReport();
+      }
+    } catch (error) {
+      app.reports = [];
+      app.selectedReportDate = "";
+      renderReportArchive(error.message);
+      renderEmptyReport();
+      toast(error.message, true);
+    } finally {
+      refreshButton.disabled = false;
+      refreshButton.removeAttribute("aria-busy");
+    }
+  }
+
+  async function loadDailyReport(date) {
+    if (!date) {
+      renderEmptyReport();
+      return;
+    }
+    app.selectedReportDate = date;
+    el("report-day").value = date;
+    renderReportArchive();
+    el("hourly-report-description").textContent = `Loading ${formatReportDate(date)}.`;
+    try {
+      const report = await api(`/api/reports/${encodeURIComponent(date)}`);
+      renderDailyReport(report);
+    } catch (error) {
+      renderEmptyReport();
+      el("hourly-report-description").textContent = error.message;
+      toast(error.message, true);
+    }
+  }
+
+  function renderDailyReport(report) {
+    const summary = report.summary || {};
+    const hours = Array.isArray(report.hours) ? report.hours : [];
+    const networkMeasured = Number(summary.networkSamples) > 0;
+    const gameMeasured = Number(summary.gameSamples) > 0;
+
+    el("report-online").textContent = `${formatNumber(summary.onlinePercent || 0, 1)}%`;
+    el("report-samples").textContent = `${summary.samples || 0} saved ${summary.samples === 1 ? "sample" : "samples"}`;
+    el("report-latency").textContent = Number(summary.averageLatencyMs) > 0
+      ? `${formatNumber(summary.averageLatencyMs, 1)} ms`
+      : "-";
+    el("report-loss").textContent = networkMeasured
+      ? `${formatNumber(summary.maximumPacketLoss || 0, 1)}%`
+      : "-";
+    el("report-network-status").textContent =
+      `${statusLabel(summary.status)} · ${summary.degradedSamples || 0} degraded · ${summary.criticalSamples || 0} critical`;
+    el("report-fps").textContent = gameMeasured ? formatNumber(summary.averageFps, 1) : "-";
+    el("report-minimum-fps").textContent = gameMeasured
+      ? `${formatNumber(summary.minimumFps || 0, 1)} minimum FPS`
+      : "No game samples";
+    el("report-players").textContent = String(summary.peakPlayers || 0);
+    el("hourly-report-description").textContent = `${formatReportDate(summary.date)} · worst network state: ${statusLabel(summary.status).toLowerCase()}.`;
+
+    const body = el("hourly-report-body");
+    body.replaceChildren();
+    hours.forEach((hour) => {
+      const row = document.createElement("tr");
+      const timeCell = document.createElement("td");
+      timeCell.textContent = hour.hour;
+      const statusCell = document.createElement("td");
+      statusCell.append(reportStatus(hour.status));
+      const onlineCell = document.createElement("td");
+      onlineCell.textContent = `${formatNumber(hour.onlinePercent || 0, 1)}%`;
+      const latencyCell = document.createElement("td");
+      latencyCell.textContent = Number(hour.averageLatencyMs) > 0
+        ? `${formatNumber(hour.averageLatencyMs, 1)} ms`
+        : "-";
+      const lossCell = document.createElement("td");
+      lossCell.textContent = Number(hour.networkSamples) > 0
+        ? `${formatNumber(hour.maximumPacketLoss || 0, 1)}%`
+        : "-";
+      const fpsCell = document.createElement("td");
+      fpsCell.textContent = Number(hour.gameSamples) > 0 ? formatNumber(hour.averageFps, 1) : "-";
+      const playersCell = document.createElement("td");
+      playersCell.textContent = String(hour.peakPlayers || 0);
+      row.append(timeCell, statusCell, onlineCell, latencyCell, lossCell, fpsCell, playersCell);
+      body.append(row);
+    });
+    el("hourly-report-empty").hidden = hours.length > 0;
+
+    const download = el("report-download");
+    download.href = `/api/reports/${encodeURIComponent(summary.date)}/download`;
+    download.download = `palctrl-report-${summary.date}.csv`;
+    download.setAttribute("aria-disabled", "false");
+    download.removeAttribute("tabindex");
+  }
+
+  function renderReportArchive(error = "") {
+    const archive = el("report-archive");
+    archive.replaceChildren();
+    if (!app.reports.length) {
+      archive.append(emptyState(
+        error ? "Reports unavailable" : "No reports yet",
+        error || "PAL CTRL will create today's file automatically.",
+        true,
+      ));
+      return;
+    }
+    app.reports.forEach((report) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = `report-archive-row${report.date === app.selectedReportDate ? " is-active" : ""}`;
+      row.dataset.reportDate = report.date;
+
+      const detail = document.createElement("span");
+      const date = document.createElement("strong");
+      date.textContent = formatReportDate(report.date);
+      const meta = document.createElement("small");
+      meta.textContent = `${report.samples || 0} samples · ${formatBytes(report.size || 0)}`;
+      detail.append(date, meta);
+      row.append(detail, reportStatus(report.status));
+      archive.append(row);
+    });
+  }
+
+  function renderEmptyReport() {
+    el("report-online").textContent = "-";
+    el("report-samples").textContent = "No samples";
+    el("report-latency").textContent = "-";
+    el("report-loss").textContent = "-";
+    el("report-network-status").textContent = "Awaiting report";
+    el("report-fps").textContent = "-";
+    el("report-minimum-fps").textContent = "No game samples";
+    el("report-players").textContent = "-";
+    el("hourly-report-body").replaceChildren();
+    el("hourly-report-empty").hidden = false;
+    el("hourly-report-description").textContent = "Choose a day to inspect its measurements.";
+    const download = el("report-download");
+    download.href = "#";
+    download.setAttribute("aria-disabled", "true");
+    download.setAttribute("tabindex", "-1");
+  }
+
+  function reportStatus(status) {
+    const value = ["healthy", "degraded", "critical", "disabled"].includes(status) ? status : "collecting";
+    const badge = document.createElement("span");
+    badge.className = `report-status is-${value}`;
+    badge.textContent = statusLabel(value);
+    return badge;
+  }
+
+  function statusLabel(status) {
+    const value = typeof status === "string" && status ? status : "collecting";
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  }
+
+  function formatReportDate(date) {
+    const parsed = new Date(`${date}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return date;
+    return parsed.toLocaleDateString([], { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+  }
+
   async function loadGameSettings({ quiet = false } = {}) {
     if (app.settingsLoading) return;
     app.settingsLoading = true;
@@ -733,7 +917,7 @@
   }
 
   function switchView(view) {
-    if (!["overview", "players", "console", "utilities", "settings"].includes(view)) return;
+    if (!["overview", "players", "console", "utilities", "reports", "settings"].includes(view)) return;
     app.activeView = view;
     all("[data-view-panel]").forEach((panel) => {
       const visible = panel.dataset.viewPanel === view;
@@ -753,6 +937,7 @@
       window.clearInterval(app.logTimer);
     }
     if (view === "utilities") loadBackups();
+    if (view === "reports") loadReports();
     if (view === "settings" && !app.settingsData) loadGameSettings();
     if (view === "overview") drawChart();
   }
@@ -906,6 +1091,12 @@
     });
 
     el("refresh-button").addEventListener("click", () => loadState());
+    el("refresh-reports-button").addEventListener("click", () => loadReports());
+    el("report-day").addEventListener("change", (event) => loadDailyReport(event.target.value));
+    el("report-archive").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-report-date]");
+      if (button) loadDailyReport(button.dataset.reportDate);
+    });
     el("logout-button").addEventListener("click", async () => {
       try {
         await api("/api/logout", { method: "POST", body: "{}" });
@@ -926,6 +1117,7 @@
         el("panel-password").value = "";
         hideLogin();
         await loadState();
+        if (app.activeView === "reports") await loadReports();
       } catch (error) {
         el("login-error").textContent = error.message;
         showLogin();
@@ -1081,7 +1273,7 @@
   function start() {
     bindEvents();
     const initialView = window.location.hash.slice(1);
-    switchView(["overview", "players", "console", "utilities", "settings"].includes(initialView) ? initialView : "overview");
+    switchView(["overview", "players", "console", "utilities", "reports", "settings"].includes(initialView) ? initialView : "overview");
     loadState();
     app.refreshTimer = window.setInterval(() => loadState({ quiet: true }), 10000);
   }

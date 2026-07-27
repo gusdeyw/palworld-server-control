@@ -109,6 +109,56 @@ Returns the in-memory 24-hour sample history:
 }
 ```
 
+## Reports
+
+### `GET /api/reports`
+
+Returns daily report summaries newest first, along with the calendar timezone
+and retention policy:
+
+```json
+{
+  "timezone": "Asia/Makassar",
+  "retentionDays": 30,
+  "reports": [
+    {
+      "date": "2026-07-27",
+      "status": "degraded",
+      "samples": 1440,
+      "gameSamples": 1439,
+      "networkSamples": 1440,
+      "onlinePercent": 99.9,
+      "averageFps": 59.1,
+      "minimumFps": 52,
+      "peakPlayers": 4,
+      "averageLatencyMs": 3.2,
+      "maximumLatencyMs": 38.4,
+      "averagePacketLoss": 0.3,
+      "maximumPacketLoss": 5,
+      "degradedSamples": 2,
+      "criticalSamples": 0,
+      "size": 184320
+    }
+  ]
+}
+```
+
+The daily status is the worst recorded network classification for that day.
+API availability is the percentage of samples where the Palworld REST API
+responded.
+
+### `GET /api/reports/{YYYY-MM-DD}`
+
+Returns the selected daily summary and compact hourly buckets. Each hourly
+bucket includes API availability, average FPS, peak players, average latency,
+maximum loss and the worst network state.
+
+### `GET /api/reports/{YYYY-MM-DD}/download`
+
+Downloads the original human-readable CSV as
+`palctrl-report-YYYY-MM-DD.csv`. The download requires the normal authenticated
+session cookie.
+
 ### `GET /api/logs`
 
 Returns recent Docker or native process log lines.

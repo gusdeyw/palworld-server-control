@@ -46,6 +46,7 @@ it uses Docker.
 | `PALWORLD_BACKUP_DIR` | Yes | `./backups` | Writable ZIP backup directory |
 | `PALWORLD_SETTINGS_PATH` | Settings editor | Empty | Writable `PalWorldSettings.ini` path |
 | `PALWORLD_SETTINGS_STATE_DIR` | Settings editor | `./backups/settings` | Normal baseline and INI snapshot directory |
+| `REPORT_DIR` | No | `<PALWORLD_BACKUP_DIR>/reports` | Daily measurement CSV directory |
 
 Recommended container paths:
 
@@ -67,6 +68,29 @@ volumes:
 
 The broad save mount remains read-only. Only the configuration directory and
 backup destination are writable.
+
+## Daily reports
+
+PAL CTRL appends one row per metrics interval to a human-readable CSV file named
+`YYYY-MM-DD.csv`. Files include server API availability, FPS, frame time,
+players, memory, probe latency, packet loss and network status. Offline game
+samples are still written, so availability and network incidents are not lost.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `REPORT_DIR` | `<PALWORLD_BACKUP_DIR>/reports` | Writable directory for daily CSV files |
+| `REPORT_RETENTION_DAYS` | `30` | Calendar days retained; values below one use the default |
+| `REPORT_TIMEZONE` | `UTC` | IANA timezone used for daily file boundaries and report hours |
+
+For a WITA calendar, set:
+
+```dotenv
+REPORT_TIMEZONE=Asia/Makassar
+```
+
+At the default 30-second metrics interval, a report contains at most 2,880
+measurement rows per full day. At a 10-second interval it contains at most
+8,640 rows. No database is required.
 
 ## Timing
 

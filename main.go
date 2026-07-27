@@ -50,6 +50,9 @@ type Config struct {
 	NetworkWindow    int
 	NetworkDegraded  float64
 	NetworkCritical  float64
+	ReportDir        string
+	ReportRetention  int
+	ReportTimezone   string
 	ShutdownWait     int
 	ShutdownMessage  string
 }
@@ -65,15 +68,18 @@ type Sample struct {
 }
 
 type App struct {
-	cfg          Config
-	pal          *PalClient
-	docker       *DockerManager
-	network      *NetworkMonitor
-	session      string
-	historyMu    sync.RWMutex
-	history      []Sample
-	settingsMu   sync.Mutex
-	mockSettings map[string]any
+	cfg           Config
+	pal           *PalClient
+	docker        *DockerManager
+	network       *NetworkMonitor
+	reports       *ReportStore
+	session       string
+	historyMu     sync.RWMutex
+	history       []Sample
+	reportErrMu   sync.Mutex
+	reportLastErr time.Time
+	settingsMu    sync.Mutex
+	mockSettings  map[string]any
 }
 
 type actionRequest struct {
@@ -100,6 +106,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	reports, err := NewReportStore(cfg.ReportDir, cfg.ReportRetention, cfg.ReportTimezone)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	app := &App{
 		cfg: cfg,
@@ -121,6 +131,7 @@ func main() {
 			cfg.NetworkCritical,
 			cfg.Mock,
 		),
+		reports: reports,
 		session: session,
 		history: make([]Sample, 0, 2880),
 	}
@@ -138,6 +149,8 @@ func main() {
 	mux.Handle("/api/logout", app.requireAuth(app.requireMutation(http.HandlerFunc(app.handleLogout))))
 	mux.Handle("/api/state", app.requireAuth(http.HandlerFunc(app.handleState)))
 	mux.Handle("/api/history", app.requireAuth(http.HandlerFunc(app.handleHistory)))
+	mux.Handle("/api/reports", app.requireAuth(http.HandlerFunc(app.handleReports)))
+	mux.Handle("/api/reports/", app.requireAuth(http.HandlerFunc(app.handleReports)))
 	mux.Handle("/api/logs", app.requireAuth(http.HandlerFunc(app.handleLogs)))
 	mux.Handle("/api/action", app.requireAuth(app.requireMutation(http.HandlerFunc(app.handleAction))))
 	mux.Handle("/api/console", app.requireAuth(app.requireMutation(http.HandlerFunc(app.handleConsole))))
@@ -164,6 +177,7 @@ func main() {
 
 func loadConfig() Config {
 	adminPassword := env("PALWORLD_ADMIN_PASSWORD", "")
+	backupDir := env("PALWORLD_BACKUP_DIR", "./backups")
 	return Config{
 		Addr:             env("PANEL_ADDR", "127.0.0.1:8080"),
 		PanelPassword:    env("PANEL_PASSWORD", ""),
@@ -180,7 +194,7 @@ func loadConfig() Config {
 		ControlURL:       env("PALWORLD_CONTROL_URL", ""),
 		ControlToken:     env("PALWORLD_CONTROL_TOKEN", ""),
 		SaveDir:          env("PALWORLD_SAVE_DIR", ""),
-		BackupDir:        env("PALWORLD_BACKUP_DIR", "./backups"),
+		BackupDir:        backupDir,
 		SettingsPath:     env("PALWORLD_SETTINGS_PATH", ""),
 		SettingsStateDir: env("PALWORLD_SETTINGS_STATE_DIR", "./backups/settings"),
 		MetricsInterval:  envDuration("METRICS_INTERVAL", 30*time.Second),
@@ -190,6 +204,9 @@ func loadConfig() Config {
 		NetworkWindow:    envInt("NETWORK_PROBE_WINDOW", 20),
 		NetworkDegraded:  envFloat("NETWORK_DEGRADED_LOSS", 5),
 		NetworkCritical:  envFloat("NETWORK_CRITICAL_LOSS", 20),
+		ReportDir:        env("REPORT_DIR", filepath.Join(backupDir, "reports")),
+		ReportRetention:  envInt("REPORT_RETENTION_DAYS", 30),
+		ReportTimezone:   env("REPORT_TIMEZONE", "UTC"),
 		ShutdownWait:     envInt("PALWORLD_SHUTDOWN_WAIT", 15),
 		ShutdownMessage:  env("PALWORLD_SHUTDOWN_MESSAGE", "Server is shutting down. See you soon."),
 	}
@@ -536,13 +553,29 @@ func (a *App) sampleLoop() {
 		palState, err := a.pal.State(ctx)
 		host, _ := a.docker.Stats(ctx)
 		cancel()
+		now := time.Now()
+		network := NetworkHealth{}
+		if a.network != nil {
+			network = a.network.Health()
+		}
+		report := ReportRecord{
+			At:            now,
+			ServerOnline:  err == nil,
+			MemoryUsage:   host.MemoryUsage,
+			NetworkStatus: network.Status,
+		}
+		if network.Enabled && network.Sent > 0 {
+			report.PacketLoss = floatPointer(network.PacketLoss)
+		}
+		if network.Received > 0 {
+			report.LatencyMS = floatPointer(network.LatencyMS)
+		}
 		if err == nil {
-			network := NetworkHealth{}
-			if a.network != nil {
-				network = a.network.Health()
-			}
+			report.FPS = floatPointer(palState.Metrics.ServerFPS)
+			report.FrameTimeMS = floatPointer(palState.Metrics.ServerFrameTime)
+			report.Players = intPointer(palState.Metrics.CurrentPlayerNum)
 			sample := Sample{
-				At:          time.Now().UTC(),
+				At:          now.UTC(),
 				FPS:         palState.Metrics.ServerFPS,
 				FrameTime:   palState.Metrics.ServerFrameTime,
 				Players:     palState.Metrics.CurrentPlayerNum,
@@ -562,8 +595,31 @@ func (a *App) sampleLoop() {
 			}
 			a.historyMu.Unlock()
 		}
+		if a.reports != nil {
+			if err := a.reports.Append(report); err != nil {
+				a.logReportError(err)
+			}
+		}
 		timer.Reset(a.cfg.MetricsInterval)
 	}
+}
+
+func (a *App) logReportError(err error) {
+	a.reportErrMu.Lock()
+	defer a.reportErrMu.Unlock()
+	if time.Since(a.reportLastErr) < 5*time.Minute {
+		return
+	}
+	a.reportLastErr = time.Now()
+	log.Printf("daily report write failed: %v", err)
+}
+
+func floatPointer(value float64) *float64 {
+	return &value
+}
+
+func intPointer(value int) *int {
+	return &value
 }
 
 func (a *App) requireAuth(next http.Handler) http.Handler {
