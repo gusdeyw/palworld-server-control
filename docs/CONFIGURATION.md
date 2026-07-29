@@ -32,6 +32,7 @@ possible. Keep the console clearly identified as legacy functionality.
 | `PALWORLD_CONTAINER` | Docker | `palworld` | Managed container name |
 | `PALWORLD_COMPOSE_DIR` | Updates | Empty | Compose project directory |
 | `PALWORLD_COMPOSE_SERVICE` | No | `palworld` | Compose service used for updates |
+| `PALWORLD_LOW_SPACE_UPDATE` | No | `false` | Stops and removes the old game container/image before pulling its replacement; use only on storage-constrained Docker hosts |
 | `PALWORLD_CONTROL_URL` | Native Windows | Empty | Native bridge base URL |
 | `PALWORLD_CONTROL_TOKEN` | Native Windows | Empty | Shared bridge token |
 

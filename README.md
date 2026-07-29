@@ -15,8 +15,8 @@ metrics, and provides safe control over official Palworld settings.
 - Rolling UDP latency and packet-loss health with degraded/critical warnings
 - Persistent daily CSV reports with summaries, hourly breakdowns and downloads
 - Player list with ping, level, kick and ban actions
-- World saves, announcements, graceful shutdowns, restarts and updates
-- Recent logs and a legacy RCON console
+- World saves, announcements, graceful shutdowns, restarts and verified updates
+- Filtered Palworld server events and a legacy RCON command console
 - ZIP backups stored outside the live save directory with storage totals and confirmed removal
 - Six Game Night presets:
   - Normal Night

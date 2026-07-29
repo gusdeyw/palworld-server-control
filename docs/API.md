@@ -205,7 +205,7 @@ Supported actions:
 | --- | --- | --- |
 | `start` | None | Starts the server and waits for readiness |
 | `restart` | None | Restarts and waits for readiness |
-| `update` | None | Pulls and recreates the configured Compose service |
+| `update` | None | Saves and backs up the world, pulls and force-recreates the configured Compose service, verifies the image ID, starts the server, and reports the running game version |
 | `save` | None | Requests an in-game world save |
 | `shutdown` | `message`, `waitTime` | Warns players, saves and stops gracefully |
 | `force-stop` | None | Stops without the in-game shutdown path |

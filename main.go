@@ -37,6 +37,7 @@ type Config struct {
 	Container        string
 	ComposeDir       string
 	ComposeService   string
+	LowSpaceUpdate   bool
 	ControlURL       string
 	ControlToken     string
 	SaveDir          string
@@ -118,6 +119,7 @@ func main() {
 			cfg.Container,
 			cfg.ComposeDir,
 			cfg.ComposeService,
+			cfg.LowSpaceUpdate,
 			cfg.ControlURL,
 			cfg.ControlToken,
 			cfg.Mock,
@@ -192,6 +194,7 @@ func loadConfig() Config {
 		Container:        env("PALWORLD_CONTAINER", "palworld"),
 		ComposeDir:       env("PALWORLD_COMPOSE_DIR", ""),
 		ComposeService:   env("PALWORLD_COMPOSE_SERVICE", "palworld"),
+		LowSpaceUpdate:   envBool("PALWORLD_LOW_SPACE_UPDATE", false),
 		ControlURL:       env("PALWORLD_CONTROL_URL", ""),
 		ControlToken:     env("PALWORLD_CONTROL_TOKEN", ""),
 		SaveDir:          env("PALWORLD_SAVE_DIR", ""),
@@ -384,7 +387,11 @@ func (a *App) handleAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Action = strings.TrimSpace(req.Action)
-	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
+	actionTimeout := 3 * time.Minute
+	if req.Action == "update" {
+		actionTimeout = 30 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), actionTimeout)
 	defer cancel()
 
 	var result string
@@ -401,7 +408,7 @@ func (a *App) handleAction(w http.ResponseWriter, r *http.Request) {
 			err = a.waitForPalworld(ctx, 60*time.Second)
 		}
 	case "update":
-		result, err = a.docker.Update(ctx)
+		result, err = a.updatePalworld(ctx)
 	case "save":
 		err = a.pal.Post(ctx, "/v1/api/save", nil)
 		result = "World saved"

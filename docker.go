@@ -28,13 +28,17 @@ type dockerStatsJSON struct {
 	BlockIO  string `json:"BlockIO"`
 }
 
+var errDockerNoSpace = errors.New("not enough disk space while downloading or extracting the server image")
+
 type DockerManager struct {
 	container  string
 	composeDir string
 	service    string
+	lowSpace   bool
 	controlURL string
 	controlKey string
 	mock       bool
+	runCommand func(context.Context, string, ...string) (string, error)
 }
 
 type nativeControlResponse struct {
@@ -46,13 +50,16 @@ type nativeControlResponse struct {
 }
 
 func NewDockerManager(
-	container, composeDir, service, controlURL, controlKey string,
+	container, composeDir, service string,
+	lowSpace bool,
+	controlURL, controlKey string,
 	mock bool,
 ) *DockerManager {
 	return &DockerManager{
 		container:  strings.TrimSpace(container),
 		composeDir: strings.TrimSpace(composeDir),
 		service:    strings.TrimSpace(service),
+		lowSpace:   lowSpace,
 		controlURL: strings.TrimRight(strings.TrimSpace(controlURL), "/"),
 		controlKey: strings.TrimSpace(controlKey),
 		mock:       mock,
@@ -176,13 +183,164 @@ func (d *DockerManager) Update(ctx context.Context) (string, error) {
 	if d.service == "" {
 		return "", errors.New("PALWORLD_COMPOSE_SERVICE is not configured")
 	}
+	if d.lowSpace {
+		result, err := d.updateCompose(ctx)
+		if err == nil || !errors.Is(err, errDockerNoSpace) {
+			return result, err
+		}
+		return d.updateComposeLowSpace(ctx)
+	}
+	return d.updateCompose(ctx)
+}
+
+func (d *DockerManager) updateCompose(ctx context.Context) (string, error) {
+	beforeImage, _ := d.containerImageID(ctx)
+	imageRef, _ := d.containerImageReference(ctx)
 	if _, err := d.runIn(ctx, d.composeDir, "compose", "pull", d.service); err != nil {
 		return "", fmt.Errorf("pull image: %w", err)
 	}
-	if _, err := d.runIn(ctx, d.composeDir, "compose", "up", "-d", d.service); err != nil {
+	if imageRef != "" {
+		pulledImage, err := d.imageID(ctx, imageRef)
+		if err == nil && beforeImage != "" && beforeImage == pulledImage {
+			return "Server is already using the latest image (" + shortImageID(beforeImage) + ")", nil
+		}
+	}
+	if _, err := d.runIn(
+		ctx,
+		d.composeDir,
+		"compose",
+		"up",
+		"-d",
+		"--force-recreate",
+		"--no-deps",
+		d.service,
+	); err != nil {
 		return "", fmt.Errorf("recreate service: %w", err)
 	}
-	return "Server image updated", nil
+	afterImage, err := d.containerImageID(ctx)
+	if err != nil {
+		return "", fmt.Errorf("verify updated container image: %w", err)
+	}
+	if afterImage == "" {
+		return "", errors.New("verify updated container image: Docker returned an empty image ID")
+	}
+	if beforeImage != "" && beforeImage == afterImage {
+		return "Server was recreated and is already using the latest image (" + shortImageID(afterImage) + ")", nil
+	}
+	if beforeImage == "" {
+		return "Server was recreated with image " + shortImageID(afterImage), nil
+	}
+	return fmt.Sprintf(
+		"Server image updated (%s to %s)",
+		shortImageID(beforeImage),
+		shortImageID(afterImage),
+	), nil
+}
+
+func (d *DockerManager) updateComposeLowSpace(ctx context.Context) (string, error) {
+	if _, err := d.Stop(ctx); err != nil {
+		return "", fmt.Errorf("stop server for low-storage update: %w", err)
+	}
+	beforeImage, err := d.containerImageID(ctx)
+	if err != nil {
+		return "", fmt.Errorf("inspect current image for low-storage update: %w", err)
+	}
+	imageRef, err := d.containerImageReference(ctx)
+	if err != nil {
+		return "", fmt.Errorf("inspect current image reference for low-storage update: %w", err)
+	}
+	repoDigest, err := d.imageRepoDigest(ctx, beforeImage)
+	if err != nil {
+		return "", fmt.Errorf("resolve recovery image for low-storage update: %w", err)
+	}
+	if !strings.Contains(repoDigest, "@sha256:") {
+		return "", errors.New("resolve recovery image for low-storage update: repository digest is unavailable")
+	}
+
+	if _, err := d.run(ctx, "rm", d.container); err != nil {
+		return "", fmt.Errorf("remove stopped container for low-storage update: %w", err)
+	}
+	if _, err := d.run(ctx, "image", "rm", "-f", beforeImage); err != nil {
+		return d.lowSpaceUpdateFailure(
+			fmt.Errorf("remove old image for low-storage update: %w", err),
+			imageRef,
+			repoDigest,
+		)
+	}
+	if _, err := d.runIn(ctx, d.composeDir, "compose", "pull", d.service); err != nil {
+		return d.lowSpaceUpdateFailure(
+			fmt.Errorf("pull image in low-storage mode: %w", err),
+			imageRef,
+			repoDigest,
+		)
+	}
+	if _, err := d.runIn(
+		ctx,
+		d.composeDir,
+		"compose",
+		"up",
+		"-d",
+		"--force-recreate",
+		"--no-deps",
+		d.service,
+	); err != nil {
+		return d.lowSpaceUpdateFailure(
+			fmt.Errorf("recreate service in low-storage mode: %w", err),
+			imageRef,
+			repoDigest,
+		)
+	}
+
+	afterImage, err := d.containerImageID(ctx)
+	if err != nil {
+		return d.lowSpaceUpdateFailure(
+			fmt.Errorf("verify low-storage update: %w", err),
+			imageRef,
+			repoDigest,
+		)
+	}
+	if beforeImage == afterImage {
+		return "Server was reinstalled and is already using the latest image (" + shortImageID(afterImage) + ")", nil
+	}
+	return fmt.Sprintf(
+		"Server image replaced in low-storage mode (%s to %s)",
+		shortImageID(beforeImage),
+		shortImageID(afterImage),
+	), nil
+}
+
+func (d *DockerManager) lowSpaceUpdateFailure(
+	updateErr error,
+	imageRef, repoDigest string,
+) (string, error) {
+	recoveryCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	_, _ = d.run(recoveryCtx, "rm", "-f", d.container)
+	_, _ = d.run(recoveryCtx, "image", "rm", "-f", imageRef)
+	if _, err := d.run(recoveryCtx, "pull", repoDigest); err != nil {
+		return "", fmt.Errorf("%v; previous image recovery pull failed: %w", updateErr, err)
+	}
+	if _, err := d.run(recoveryCtx, "tag", repoDigest, imageRef); err != nil {
+		return "", fmt.Errorf("%v; previous image recovery tag failed: %w", updateErr, err)
+	}
+	if _, err := d.runIn(
+		recoveryCtx,
+		d.composeDir,
+		"compose",
+		"up",
+		"-d",
+		"--force-recreate",
+		"--no-deps",
+		d.service,
+	); err != nil {
+		return "", fmt.Errorf("%v; previous image recovery start failed: %w", updateErr, err)
+	}
+	return "", fmt.Errorf("%v; previous server image was restored", updateErr)
+}
+
+func (d *DockerManager) updateRequiresStop() bool {
+	return d.controlURL != ""
 }
 
 func (d *DockerManager) Logs(ctx context.Context, tail int) ([]string, error) {
@@ -191,7 +349,6 @@ func (d *DockerManager) Logs(ctx context.Context, tail int) ([]string, error) {
 		return []string{
 			now.Add(-18*time.Second).Format(time.RFC3339) + " [Info] World autosave completed",
 			now.Add(-12*time.Second).Format(time.RFC3339) + " [Info] Wina joined the server",
-			now.Add(-8*time.Second).Format(time.RFC3339) + " [Info] REST API metrics request completed",
 			now.Add(-3*time.Second).Format(time.RFC3339) + " [Info] Tick rate stable at 59.4 FPS",
 		}, nil
 	}
@@ -212,7 +369,14 @@ func (d *DockerManager) Logs(ctx context.Context, tail int) ([]string, error) {
 	if tail < 1 || tail > 1000 {
 		tail = 240
 	}
-	output, err := d.run(ctx, "logs", "--tail", strconv.Itoa(tail), "--timestamps", d.container)
+	rawTail := tail * 8
+	if rawTail < 1000 {
+		rawTail = 1000
+	}
+	if rawTail > 5000 {
+		rawTail = 5000
+	}
+	output, err := d.run(ctx, "logs", "--tail", strconv.Itoa(rawTail), "--timestamps", d.container)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +385,54 @@ func (d *DockerManager) Logs(ctx context.Context, tail int) ([]string, error) {
 	if output == "" {
 		return []string{}, nil
 	}
-	return strings.Split(output, "\n"), nil
+	return filterPalworldLogLines(strings.Split(output, "\n"), tail), nil
+}
+
+func (d *DockerManager) containerImageID(ctx context.Context) (string, error) {
+	output, err := d.run(ctx, "inspect", "--format", "{{.Image}}", d.container)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(output), nil
+}
+
+func (d *DockerManager) containerImageReference(ctx context.Context) (string, error) {
+	output, err := d.run(ctx, "inspect", "--format", "{{.Config.Image}}", d.container)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(output), nil
+}
+
+func (d *DockerManager) imageRepoDigest(ctx context.Context, imageID string) (string, error) {
+	output, err := d.run(
+		ctx,
+		"image",
+		"inspect",
+		"--format",
+		"{{index .RepoDigests 0}}",
+		imageID,
+	)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(output), nil
+}
+
+func (d *DockerManager) imageID(ctx context.Context, imageRef string) (string, error) {
+	output, err := d.run(ctx, "image", "inspect", "--format", "{{.Id}}", imageRef)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(output), nil
+}
+
+func shortImageID(value string) string {
+	value = strings.TrimSpace(strings.TrimPrefix(value, "sha256:"))
+	if len(value) > 12 {
+		value = value[:12]
+	}
+	return value
 }
 
 func (d *DockerManager) nativeAction(ctx context.Context, path string) (string, error) {
@@ -268,17 +479,36 @@ func (d *DockerManager) run(ctx context.Context, args ...string) (string, error)
 }
 
 func (d *DockerManager) runIn(ctx context.Context, dir string, args ...string) (string, error) {
+	if d.runCommand != nil {
+		return d.runCommand(ctx, dir, args...)
+	}
 	command := exec.CommandContext(ctx, "docker", args...)
 	if dir != "" {
 		command.Dir = dir
 	}
 	output, err := command.CombinedOutput()
 	if err != nil {
-		message := strings.TrimSpace(string(output))
+		rawMessage := string(output)
+		if strings.Contains(strings.ToLower(rawMessage), "no space left on device") {
+			return "", fmt.Errorf("docker %s: %w", strings.Join(args, " "), errDockerNoSpace)
+		}
+		message := summarizeDockerError(rawMessage)
 		if message == "" {
 			message = err.Error()
 		}
 		return "", fmt.Errorf("docker %s: %s", strings.Join(args, " "), message)
 	}
 	return string(output), nil
+}
+
+func summarizeDockerError(output string) string {
+	message := strings.TrimSpace(output)
+	if strings.Contains(strings.ToLower(message), "no space left on device") {
+		return "not enough disk space while downloading or extracting the server image"
+	}
+	const limit = 2000
+	if len(message) > limit {
+		message = "... " + message[len(message)-limit:]
+	}
+	return message
 }

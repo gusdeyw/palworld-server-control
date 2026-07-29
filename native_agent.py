@@ -223,7 +223,7 @@ def update_server() -> str:
         check=False,
         capture_output=True,
         text=True,
-        timeout=600,
+        timeout=1800,
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
     if completed.returncode != 0 or "fully installed" not in completed.stdout:

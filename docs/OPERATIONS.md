@@ -162,21 +162,47 @@ Never extract an untrusted archive directly as root.
 
 ## Update workflow
 
-The panel Update action runs the configured Compose pull and recreate flow.
-Before an update:
+The panel Update action performs the complete maintenance flow:
 
-- Save the world
-- Create a backup
-- Verify free disk space
-- Warn connected players
+1. Warn connected players.
+2. Save the world.
+3. Create a safety ZIP backup when save and backup paths are configured.
+4. Pull the configured Compose image while the existing Docker server remains
+   available. Native SteamCMD installations are stopped before updating.
+5. Force-recreate the Docker service so a moved image tag cannot leave the old
+   container running.
+6. Compare the old and running Docker image IDs.
+7. Start Palworld when required and wait for the REST health check.
+8. Read the running game version and include it in the success message.
 
-After an update:
+The update request may remain open for up to 30 minutes because the official
+Palworld image can be large. The production Nginx configuration gives
+`/api/action` the matching timeout.
 
-- Confirm both containers are running
-- Check the Palworld version
-- Confirm REST metrics
-- Join the game once
-- Retain the pre-update backup
+If pulling or installing the update fails after a previously running server
+was stopped, PAL CTRL attempts to start the existing installation again.
+Retain the pre-update backup until somebody has joined and verified the world.
+
+On a storage-constrained Docker host, set
+`PALWORLD_LOW_SPACE_UPDATE=true`. PAL CTRL first tries the normal pull while
+the existing server remains available. If Docker specifically reports
+insufficient disk space, PAL CTRL stops and removes the old game
+container/image, then retries the pull. This avoids needing disk space for two
+unpacked Palworld images. If the replacement fails, PAL CTRL uses the previous
+repository digest to restore the old image. Save data remains on the external
+`Saved` mount and is never stored in the replaceable container.
+
+## Server console
+
+The Console page reads the Palworld container output and refreshes every five
+seconds. The official server writes routine REST status polling into the same
+stream as player and lifecycle events. PAL CTRL removes those `REST` command
+records and formats the remaining Palworld JSON events into concise,
+timestamped lines. Startup messages, warnings, errors and crash output that are
+not JSON remain visible unchanged.
+
+The command field is separate from the log stream and sends commands over
+RCON.
 
 ## Health thresholds
 

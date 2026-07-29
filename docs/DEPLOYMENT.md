@@ -68,6 +68,7 @@ PALWORLD_RCON_PASSWORD=replace-with-the-game-admin-password
 PALWORLD_CONTAINER=palworld
 PALWORLD_COMPOSE_DIR=/opt/palworld
 PALWORLD_COMPOSE_SERVICE=palworld
+PALWORLD_LOW_SPACE_UPDATE=false
 PALWORLD_SAVE_DIR=/palworld-saved
 PALWORLD_BACKUP_DIR=/backups
 PALWORLD_SETTINGS_PATH=/palworld-config/PalWorldSettings.ini
@@ -216,4 +217,3 @@ cd /opt/palworld
 docker compose build palctrl
 docker compose up -d --no-deps --force-recreate palctrl
 ```
-

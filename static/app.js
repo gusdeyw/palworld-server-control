@@ -338,7 +338,9 @@
     try {
       const result = await api("/api/logs");
       const lines = Array.isArray(result.lines) ? result.lines : [];
-      output.textContent = lines.length ? lines.join("\n") : "No container logs yet.";
+      output.textContent = lines.length
+        ? lines.join("\n")
+        : "No Palworld server events are present in the retained logs. Routine REST polling is hidden.";
       el("console-status").textContent = `Updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
       if (scroll) output.scrollTop = output.scrollHeight;
     } catch (error) {
@@ -1006,7 +1008,7 @@
     const confirmations = {
       restart: ["Restart the server?", "Connected players will be disconnected. Save the world first if needed."],
       shutdown: ["Shut down gracefully?", "Players will receive a warning before the server stops."],
-      update: ["Update the server?", "The configured update workflow will validate and refresh the server files."],
+      update: ["Update the server?", "PAL CTRL will save the world, create a safety backup, download the newest server files, restart Palworld, then verify the running game version. This can take several minutes."],
       "force-stop": ["Force stop the server?", "This skips the in-game save and shutdown path. Unsaved progress may be lost."],
     };
     if (confirmations[action]) {
