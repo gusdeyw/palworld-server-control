@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -157,7 +158,7 @@ func main() {
 	mux.Handle("/api/action", app.requireAuth(app.requireMutation(http.HandlerFunc(app.handleAction))))
 	mux.Handle("/api/console", app.requireAuth(app.requireMutation(http.HandlerFunc(app.handleConsole))))
 	mux.Handle("/api/backups", app.requireAuth(http.HandlerFunc(app.handleBackups)))
-	mux.Handle("/api/backups/", app.requireAuth(app.requireMutation(http.HandlerFunc(app.handleDeleteBackup))))
+	mux.Handle("/api/backups/", app.requireAuth(http.HandlerFunc(app.handleBackupEntry)))
 	mux.Handle("/api/game-settings", app.requireAuth(http.HandlerFunc(app.handleGameSettings)))
 	mux.Handle("/api/game-settings/apply", app.requireAuth(app.requireMutation(http.HandlerFunc(app.handleApplyGameSettings))))
 	mux.Handle("/api/game-settings/rollback", app.requireAuth(app.requireMutation(http.HandlerFunc(app.handleRollbackGameSettings))))
@@ -583,6 +584,63 @@ func (a *App) handleDeleteBackup(w http.ResponseWriter, r *http.Request) {
 		"message": "Backup deleted: " + deleted.Name,
 		"deleted": deleted,
 	})
+}
+
+func (a *App) handleBackupEntry(w http.ResponseWriter, r *http.Request) {
+	path := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/backups/"), "/")
+	parts := strings.Split(path, "/")
+
+	if len(parts) == 2 && parts[1] == "download" {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			writeError(w, http.StatusMethodNotAllowed, "GET required")
+			return
+		}
+		a.downloadBackup(w, r, parts[0])
+		return
+	}
+	if len(parts) == 1 && parts[0] != "" {
+		if r.Method != http.MethodDelete {
+			writeError(w, http.StatusMethodNotAllowed, "DELETE required")
+			return
+		}
+		a.requireMutation(http.HandlerFunc(a.handleDeleteBackup)).ServeHTTP(w, r)
+		return
+	}
+	writeError(w, http.StatusNotFound, "Backup not found")
+}
+
+func (a *App) downloadBackup(w http.ResponseWriter, r *http.Request, name string) {
+	if a.cfg.Mock {
+		content, err := createMockBackupArchive(name)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, friendlyError(err))
+			return
+		}
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, name))
+		w.Header().Set("Cache-Control", "private, no-store")
+		http.ServeContent(w, r, name, time.Now(), bytes.NewReader(content))
+		return
+	}
+
+	file, info, err := openBackup(a.cfg.BackupDir, name)
+	switch {
+	case errors.Is(err, errInvalidBackupName):
+		writeError(w, http.StatusBadRequest, "Invalid backup name")
+		return
+	case errors.Is(err, os.ErrNotExist):
+		writeError(w, http.StatusNotFound, "Backup not found")
+		return
+	case err != nil:
+		writeError(w, http.StatusInternalServerError, friendlyError(err))
+		return
+	}
+	defer file.Close()
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, info.Name()))
+	w.Header().Set("Cache-Control", "private, no-store")
+	http.ServeContent(w, r, info.Name(), info.ModTime(), file)
 }
 
 func (a *App) sampleLoop() {

@@ -105,6 +105,10 @@ PAL CTRL only permits removal of regular `.zip` files inside its configured
 backup directory; report CSVs, settings history and deployment archives are
 outside this action.
 
+Select **Download** to copy an individual backup to the signed-in device.
+Downloads remain authenticated, support resuming through HTTP byte ranges and
+never expose the backup directory as a public static path.
+
 ## Daily measurement reports
 
 Open **Reports** to review the selected day's availability, latency, maximum

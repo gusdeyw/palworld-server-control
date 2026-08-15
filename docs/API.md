@@ -187,6 +187,13 @@ Permanently deletes one regular `.zip` file from the configured backup
 directory. The filename is validated and path traversal, directories, symbolic
 links and non-ZIP files are rejected. This mutation requires `X-Pal-Control: 1`.
 
+### `GET /api/backups/{name}/download`
+
+Downloads the selected ZIP backup using the authenticated session cookie.
+The filename receives the same traversal and regular-file validation as
+deletion. Byte-range requests are supported so interrupted large downloads can
+resume.
+
 ## Actions
 
 ### `POST /api/action`

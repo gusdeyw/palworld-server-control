@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -195,6 +196,62 @@ func deleteBackup(backupDir, name string, mock bool) (Backup, error) {
 		return Backup{}, err
 	}
 	return deleted, nil
+}
+
+func openBackup(backupDir, name string) (*os.File, os.FileInfo, error) {
+	name = strings.TrimSpace(name)
+	if !validBackupName(name) {
+		return nil, nil, errInvalidBackupName
+	}
+	directory, err := filepath.Abs(backupDir)
+	if err != nil {
+		return nil, nil, err
+	}
+	target := filepath.Join(directory, name)
+	relative, err := filepath.Rel(directory, target)
+	if err != nil || relative != name || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return nil, nil, errInvalidBackupName
+	}
+	info, err := os.Lstat(target)
+	if err != nil {
+		return nil, nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return nil, nil, errors.New("backup target is not a regular file")
+	}
+	file, err := os.Open(target)
+	if err != nil {
+		return nil, nil, err
+	}
+	openedInfo, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, nil, err
+	}
+	if !openedInfo.Mode().IsRegular() || !os.SameFile(info, openedInfo) {
+		_ = file.Close()
+		return nil, nil, errors.New("backup changed while opening")
+	}
+	return file, openedInfo, nil
+}
+
+func createMockBackupArchive(name string) ([]byte, error) {
+	if !validBackupName(name) {
+		return nil, errInvalidBackupName
+	}
+	var output bytes.Buffer
+	archive := zip.NewWriter(&output)
+	file, err := archive.Create("README.txt")
+	if err != nil {
+		return nil, err
+	}
+	if _, err := file.Write([]byte("PAL CTRL sample backup. No live save data is included.\n")); err != nil {
+		return nil, err
+	}
+	if err := archive.Close(); err != nil {
+		return nil, err
+	}
+	return output.Bytes(), nil
 }
 
 func validBackupName(name string) bool {

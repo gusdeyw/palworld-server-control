@@ -17,7 +17,7 @@ metrics, and provides safe control over official Palworld settings.
 - Player list with ping, level, kick and ban actions
 - World saves, announcements, graceful shutdowns, restarts and verified updates
 - Filtered Palworld server events and a legacy RCON command console
-- ZIP backups stored outside the live save directory with storage totals and confirmed removal
+- Downloadable ZIP backups stored outside the live save directory with storage totals and confirmed removal
 - Six Game Night presets:
   - Normal Night
   - Fast XP Night

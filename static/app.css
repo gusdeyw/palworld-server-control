@@ -1057,6 +1057,12 @@ tbody tr:last-child td {
   margin: 0;
 }
 
+.backup-download {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .connection-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   padding-top: 2px;
